@@ -13,10 +13,11 @@ Lexer::Lexer()
 void Lexer::reset()
 {
 	tokens.clear();
-	fileContents.str("");
+	//fileContents.str("");
 	fileContents.clear();
 	line = 1;
 	column = 0;
+	currentIndex = 0;
 }
 
 void Lexer::fill_keyword_map()
@@ -38,6 +39,7 @@ void Lexer::fill_keyword_map()
 	keywords["not"] = TokenKind::TOKEN_NOT;
 	keywords["null"] = TokenKind::TOKEN_NULL;
 	keywords["in"] = TokenKind::TOKEN_IN;
+	keywords["this"] = TokenKind::TOKEN_THIS;
 }
 
 bool Lexer::lex_file(const std::string& filepath)
@@ -50,9 +52,8 @@ bool Lexer::lex_file(const std::string& filepath)
 		return false;
 	}
 
-	// read the file into our stringstream 'fileContents'
-	fileContents << inFile.rdbuf();
-	fileContents.seekp(fileContents.beg);
+	// read the file into 'fileContents'
+	fileContents = std::string((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
 	
 	// all is good, begin main lexing loop
 	while (!eof())
@@ -125,8 +126,15 @@ bool Lexer::lex_file(const std::string& filepath)
 				case '<':
 				{
 					advance();
+					
+					if (peek() == '<' && look_ahead() == '=')
+					{
+						advance();
+						advance();
+						emit_token(TokenKind::TOKEN_BITWISE_L_SHIFT_EQUALS);
+					}
 
-					if (!is_multi_character_operator('=', TokenKind::TOKEN_LTE))
+					else if (!is_multi_character_operator('=', TokenKind::TOKEN_LTE) && !is_multi_character_operator('<', TokenKind::TOKEN_BITWISE_L_SHIFT))
 						emit_token(TokenKind::TOKEN_LT);
 
 					break;
@@ -136,7 +144,14 @@ bool Lexer::lex_file(const std::string& filepath)
 				{
 					advance();
 
-					if (!is_multi_character_operator('=', TokenKind::TOKEN_GTE))
+					if (peek() == '>' && look_ahead() == '=')
+					{
+						advance();
+						advance();
+						emit_token(TokenKind::TOKEN_BITWISE_R_SHIFT_EQUALS);
+					}
+
+					else if (!is_multi_character_operator('=', TokenKind::TOKEN_GTE) && !is_multi_character_operator('>', TokenKind::TOKEN_BITWISE_R_SHIFT))
 						emit_token(TokenKind::TOKEN_GT);
 
 					break;
@@ -214,14 +229,57 @@ bool Lexer::lex_file(const std::string& filepath)
 				case '.':
 				{
 					advance();
-					emit_token(TokenKind::TOKEN_DOT);
+
+					if (!is_multi_character_operator('.', TokenKind::TOKEN_RANGE))
+						emit_token(TokenKind::TOKEN_DOT);
+
 					break;
 				}
 
 				case '%':
 				{
 					advance();
-					emit_token(TokenKind::TOKEN_MODULO);
+					
+					if (!is_multi_character_operator('=', TokenKind::TOKEN_MODULO_EQUALS))
+						emit_token(TokenKind::TOKEN_MODULO);
+
+					break;
+				}
+
+				case '|':
+				{
+					advance();
+					
+					if (!is_multi_character_operator('=', TokenKind::TOKEN_BITWISE_OR_EQUALS))
+						emit_token(TokenKind::TOKEN_BITWISE_OR);
+
+					break;
+				}
+
+				case '^':
+				{
+					advance();
+					
+					if (!is_multi_character_operator('=', TokenKind::TOKEN_BITWISE_XOR_EQUALS))
+						emit_token(TokenKind::TOKEN_BITWISE_XOR);
+
+					break;
+				}
+
+				case '~':
+				{
+					advance();
+					emit_token(TokenKind::TOKEN_BITWISE_NOT);
+					break;
+				}
+
+				case '&':
+				{
+					advance();
+					
+					if (!is_multi_character_operator('=', TokenKind::TOKEN_BITWISE_AND_EQUALS))
+						emit_token(TokenKind::TOKEN_BITWISE_AND);
+
 					break;
 				}
 
@@ -238,6 +296,8 @@ bool Lexer::lex_file(const std::string& filepath)
 				}
 			}
 		}
+
+		line++;
 	}
 
 	inFile.close();
@@ -247,9 +307,8 @@ bool Lexer::lex_file(const std::string& filepath)
 
 char Lexer::advance()
 {
-	char current = fileContents.get();
 	column++;
-	return current;
+	return fileContents[currentIndex++];
 }
 
 char Lexer::look_ahead()
@@ -262,18 +321,29 @@ char Lexer::look_ahead()
 
 void Lexer::rewind()
 {
-	fileContents.seekg(-1, std::ios::cur);
+	currentIndex--;
 	column--;
 }
 
 char Lexer::peek()
 {
-	return fileContents.peek();
+	if (eof())
+		return '\0';
+
+	return fileContents[currentIndex];
+}
+
+char Lexer::peek_next()
+{
+	if (currentIndex + 1 < fileContents.size())
+		return fileContents[currentIndex + 1];
+	else
+		return '\0';
 }
 
 bool Lexer::eof()
 {
-	return fileContents.eof();
+	return currentIndex >= fileContents.size();
 }
 
 bool Lexer::is_multi_character_operator(char expected, TokenKind kindToEmit)
@@ -314,6 +384,14 @@ void Lexer::lex_number()
 
 	if (peek() == '.')
 	{
+		// if we see something like 1.. we think it's a float, but we need to check if there's that second dot there
+		// because this can be a range in a for loop like 1..10 wherer we need to emit INT_LITERAL, RANGE, INT_LITERAL
+		if (peek_next() == '.')
+		{
+			tokens.emplace_back(token);
+			return;
+		}
+
 		token.kind = TokenKind::TOKEN_FLOAT_LITERAL;
 		token.tokenLiteral += advance();
 
@@ -377,11 +455,12 @@ void Lexer::emit_token(TokenKind kind)
 void Lexer::advance_until_newline()
 {
 	// advance through the comment until we reach the newline character
-	while (peek() != '\n')
+	while (!eof() && peek() != '\n')
 		advance();
 
 	// consume the newline character
-	advance();
+	if (!eof())
+		advance();
 }
 
 void Lexer::dump_tokens()
