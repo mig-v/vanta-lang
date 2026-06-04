@@ -1,0 +1,56 @@
+<AST_FOR>
+{
+    iterator: i
+    iterable: <AST_RANGE>
+    {
+        start: <AST_INT_LITERAL> { value: 0 }
+        end: <AST_INT_LITERAL> { value: 10 }
+        step:  (no step)
+    }
+    body: <AST_IDENTIFIER> { identifier: i }
+}
+<AST_FOR>
+{
+    iterator: i
+    iterable: <AST_RANGE>
+    {
+        start: <AST_INT_LITERAL> { value: 0 }
+        end: <AST_INT_LITERAL> { value: 10 }
+        step:  (no step)
+    }
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_BREAK>
+    }
+}
+<AST_FOR>
+{
+    iterator: i
+    iterable: <AST_RANGE>
+    {
+        start: <AST_INT_LITERAL> { value: 0 }
+        end: <AST_INT_LITERAL> { value: 10 }
+        step: <AST_INT_LITERAL> { value: 2 }
+    }
+    body: <AST_IDENTIFIER> { identifier: i }
+}
+<AST_FOR>
+{
+    iterator: i
+    iterable: <AST_RANGE>
+    {
+        start: <AST_INT_LITERAL> { value: 10 }
+        end: <AST_INT_LITERAL> { value: 0 }
+        step: <AST_UNARY_EXPR>
+        {
+            operator: -
+            expr: <AST_INT_LITERAL> { value: 1 }
+        }
+    }
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_CONTINUE>
+    }
+}

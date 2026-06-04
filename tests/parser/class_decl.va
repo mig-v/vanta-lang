@@ -1,0 +1,23 @@
+class Vec3
+{
+    var x = 0.0;
+    var y = 0.0;
+    var z = 0.0;
+
+    fn Vec3(x, y, z)
+    {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    fn sum()
+    {
+        return this.x + this.y + this.z;
+    }
+}
+
+class EmptyClass
+{
+    
+}

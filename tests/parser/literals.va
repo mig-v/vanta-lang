@@ -1,0 +1,9 @@
+# test all primitive literals in standalone statements
+10;
+0.314;
+.314;
+3.14;
+true;
+false;
+"Vanta_Lang";
+null;

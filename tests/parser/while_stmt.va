@@ -1,0 +1,15 @@
+# test while statment with single statement
+while (true)
+    1;
+
+# test while statement with block and break keyword
+while (true)
+{
+    break;
+}
+
+# test continue keyword
+while (true)
+{
+    continue;
+}

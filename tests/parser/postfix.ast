@@ -1,0 +1,66 @@
+<AST_FN_CALL>
+{
+    callee: <AST_IDENTIFIER> { identifier: foo }
+    args: (none)
+}
+<AST_FN_CALL>
+{
+    callee: <AST_IDENTIFIER> { identifier: foo }
+    args: 
+    <AST_INT_LITERAL> { value: 1 }
+    <AST_INT_LITERAL> { value: 2 }
+}
+<AST_FN_CALL>
+{
+    callee: <AST_FN_CALL>
+    {
+        callee: <AST_IDENTIFIER> { identifier: foo }
+        args: (none)
+    }
+    args: (none)
+}
+<AST_ARRAY_ACCESS>
+{
+    array: <AST_IDENTIFIER> { identifier: arr }
+    index: <AST_INT_LITERAL> { value: 0 }
+}
+<AST_FIELD_ACCESS>
+{
+    object: <AST_IDENTIFIER> { identifier: obj }
+    field_name: field
+}
+<AST_FIELD_ACCESS>
+{
+    object: <AST_FIELD_ACCESS>
+    {
+        object: <AST_IDENTIFIER> { identifier: obj }
+        field_name: field
+    }
+    field_name: nestedField
+}
+<AST_FN_CALL>
+{
+    callee: <AST_FIELD_ACCESS>
+    {
+        object: <AST_IDENTIFIER> { identifier: obj }
+        field_name: foo
+    }
+    args: (none)
+}
+<AST_FIELD_ACCESS>
+{
+    object: <AST_ARRAY_ACCESS>
+    {
+        array: <AST_FN_CALL>
+        {
+            callee: <AST_FIELD_ACCESS>
+            {
+                object: <AST_IDENTIFIER> { identifier: obj }
+                field_name: foo
+            }
+            args: (none)
+        }
+        index: <AST_INT_LITERAL> { value: 0 }
+    }
+    field_name: field
+}

@@ -1,0 +1,23 @@
+# test fn declarations with parameters, no parameters, missing return, return value
+# and implicit null return 
+fn no_params()
+{
+
+}
+
+fn params(x, y, z)
+{
+    var sum = x + y + z;
+    return sum;
+}
+
+fn no_return()
+{
+
+}
+
+fn implicit_null_return()
+{
+    return;
+}
+

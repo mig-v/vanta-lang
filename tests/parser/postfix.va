@@ -1,0 +1,8 @@
+foo();
+foo(1, 2);
+foo()();
+arr[0];
+obj.field;
+obj.field.nestedField;
+obj.foo();
+obj.foo()[0].field;

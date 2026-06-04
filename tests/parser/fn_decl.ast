@@ -1,0 +1,59 @@
+<AST_FN_DECL>
+{
+    fn_name: no_params
+    params: ()
+    body: <AST_BLOCK>
+    {
+        statements:
+    }
+}
+<AST_FN_DECL>
+{
+    fn_name: params
+    params: (x, y, z)
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_VAR_DECL>
+        {
+            identifier: sum
+            initializer: <AST_BINARY_EXPR>
+            {
+                operator: +
+                lhs: <AST_BINARY_EXPR>
+                {
+                    operator: +
+                    lhs: <AST_IDENTIFIER> { identifier: x }
+                    rhs: <AST_IDENTIFIER> { identifier: y }
+                }
+                rhs: <AST_IDENTIFIER> { identifier: z }
+            }
+        }
+        <AST_RETURN>
+        {
+            return: <AST_IDENTIFIER> { identifier: sum }
+        }
+    }
+}
+<AST_FN_DECL>
+{
+    fn_name: no_return
+    params: ()
+    body: <AST_BLOCK>
+    {
+        statements:
+    }
+}
+<AST_FN_DECL>
+{
+    fn_name: implicit_null_return
+    params: ()
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_RETURN>
+        {
+            return: (implicit null)
+        }
+    }
+}

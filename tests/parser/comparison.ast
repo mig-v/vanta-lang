@@ -1,0 +1,36 @@
+<AST_BINARY_EXPR>
+{
+    operator: <
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_BINARY_EXPR>
+{
+    operator: <=
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_BINARY_EXPR>
+{
+    operator: >
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_BINARY_EXPR>
+{
+    operator: >=
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_BINARY_EXPR>
+{
+    operator: ==
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_BINARY_EXPR>
+{
+    operator: !=
+    lhs: <AST_INT_LITERAL> { value: 10 }
+    rhs: <AST_INT_LITERAL> { value: 10 }
+}

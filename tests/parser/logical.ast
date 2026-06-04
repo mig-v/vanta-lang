@@ -1,0 +1,46 @@
+<AST_LOGICAL_EXPR>
+{
+    operator: and
+    lhs: <AST_BOOL_LITERAL> { value: 1 }
+    rhs: <AST_BOOL_LITERAL> { value: 1 }
+}
+<AST_LOGICAL_EXPR>
+{
+    operator: or
+    lhs: <AST_BOOL_LITERAL> { value: 1 }
+    rhs: <AST_BOOL_LITERAL> { value: 0 }
+}
+<AST_LOGICAL_EXPR>
+{
+    operator: and
+    lhs: <AST_BOOL_LITERAL> { value: 1 }
+    rhs: <AST_UNARY_EXPR>
+    {
+        operator: not
+        expr: <AST_BOOL_LITERAL> { value: 0 }
+    }
+}
+<AST_LOGICAL_EXPR>
+{
+    operator: or
+    lhs: <AST_UNARY_EXPR>
+    {
+        operator: not
+        expr: <AST_BOOL_LITERAL> { value: 1 }
+    }
+    rhs: <AST_BOOL_LITERAL> { value: 1 }
+}
+<AST_LOGICAL_EXPR>
+{
+    operator: and
+    lhs: <AST_UNARY_EXPR>
+    {
+        operator: not
+        expr: <AST_BOOL_LITERAL> { value: 0 }
+    }
+    rhs: <AST_UNARY_EXPR>
+    {
+        operator: not
+        expr: <AST_BOOL_LITERAL> { value: 0 }
+    }
+}

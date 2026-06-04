@@ -1,0 +1,34 @@
+# arithmetic precedence
+2 + 3 * 4;
+2 * 3 + 4;
+2 + 3 * 4 - 1 / 2;
+2 ** 3 ** 2;
+-2 ** 2;
+
+# comparison and equality
+1 + 2 == 3;
+1 < 2 == true;
+
+# logical
+true or false and false;
+not true and false;
+not true or false;
+
+# bitwise
+10 & 10 ^ 10;
+10 ^ 10 | 10;
+10 & 10 | 10;
+10 << 1 + 2;
+
+# mixed
+2 + 3 * 4 == 14;
+1 + 2 * 3 == 3 + 4 * 0;
+true or false and 1 == 1;
+2 ** 2 * 3 + 1;
+
+# grouping overriding precedence
+(2 + 3) * 4;
+2 * (3 + 4);
+(2 + 3) * (4 + 5);
+not (true or false);
+(2 + 3) ** 2;

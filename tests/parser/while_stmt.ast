@@ -1,0 +1,23 @@
+<AST_WHILE>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    body: <AST_INT_LITERAL> { value: 1 }
+}
+<AST_WHILE>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_BREAK>
+    }
+}
+<AST_WHILE>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    body: <AST_BLOCK>
+    {
+        statements:
+        <AST_CONTINUE>
+    }
+}

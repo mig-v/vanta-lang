@@ -1,0 +1,99 @@
+<AST_CLASS_DECL>
+{
+    class_name: Vec3
+    members:
+    <AST_VAR_DECL>
+    {
+        identifier: x
+        initializer: <AST_FLOAT_LITERAL> { value: 0 }
+    }
+    <AST_VAR_DECL>
+    {
+        identifier: y
+        initializer: <AST_FLOAT_LITERAL> { value: 0 }
+    }
+    <AST_VAR_DECL>
+    {
+        identifier: z
+        initializer: <AST_FLOAT_LITERAL> { value: 0 }
+    }
+    <AST_FN_DECL>
+    {
+        fn_name: Vec3
+        params: (x, y, z)
+        body: <AST_BLOCK>
+        {
+            statements:
+            <AST_ASSIGNMENT>
+            {
+                operator: =
+                lhs: <AST_FIELD_ACCESS>
+                {
+                    object: <AST_THIS>
+                    field_name: x
+                }
+                rhs: <AST_IDENTIFIER> { identifier: x }
+            }
+            <AST_ASSIGNMENT>
+            {
+                operator: =
+                lhs: <AST_FIELD_ACCESS>
+                {
+                    object: <AST_THIS>
+                    field_name: y
+                }
+                rhs: <AST_IDENTIFIER> { identifier: y }
+            }
+            <AST_ASSIGNMENT>
+            {
+                operator: =
+                lhs: <AST_FIELD_ACCESS>
+                {
+                    object: <AST_THIS>
+                    field_name: z
+                }
+                rhs: <AST_IDENTIFIER> { identifier: z }
+            }
+        }
+    }
+    <AST_FN_DECL>
+    {
+        fn_name: sum
+        params: ()
+        body: <AST_BLOCK>
+        {
+            statements:
+            <AST_RETURN>
+            {
+                return: <AST_BINARY_EXPR>
+                {
+                    operator: +
+                    lhs: <AST_BINARY_EXPR>
+                    {
+                        operator: +
+                        lhs: <AST_FIELD_ACCESS>
+                        {
+                            object: <AST_THIS>
+                            field_name: x
+                        }
+                        rhs: <AST_FIELD_ACCESS>
+                        {
+                            object: <AST_THIS>
+                            field_name: y
+                        }
+                    }
+                    rhs: <AST_FIELD_ACCESS>
+                    {
+                        object: <AST_THIS>
+                        field_name: z
+                    }
+                }
+            }
+        }
+    }
+}
+<AST_CLASS_DECL>
+{
+    class_name: EmptyClass
+    members:
+}

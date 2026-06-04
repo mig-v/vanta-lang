@@ -1,0 +1,40 @@
+<AST_VAR_DECL>
+{
+    identifier: a
+    initializer: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_VAR_DECL>
+{
+    identifier: b
+    initializer: <AST_FLOAT_LITERAL> { value: 3.14 }
+}
+<AST_VAR_DECL>
+{
+    identifier: c
+    initializer: <AST_FLOAT_LITERAL> { value: 0.314 }
+}
+<AST_VAR_DECL>
+{
+    identifier: d
+    initializer: <AST_FLOAT_LITERAL> { value: 0.314 }
+}
+<AST_VAR_DECL>
+{
+    identifier: e
+    initializer: <AST_BOOL_LITERAL> { value: 1 }
+}
+<AST_VAR_DECL>
+{
+    identifier: f
+    initializer: <AST_BOOL_LITERAL> { value: 0 }
+}
+<AST_VAR_DECL>
+{
+    identifier: g
+    initializer: <AST_STRING_LITERAL> { value: test string }
+}
+<AST_VAR_DECL>
+{
+    identifier: h
+    initializer: <AST_NULL> { (null) }
+}

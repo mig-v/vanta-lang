@@ -1,0 +1,56 @@
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_INT_LITERAL> { value: 1 }
+    false branch:  (no branch)
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_INT_LITERAL> { value: 1 }
+    }
+    false branch:  (no branch)
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_INT_LITERAL> { value: 1 }
+    false branch: <AST_INT_LITERAL> { value: 2 }
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_INT_LITERAL> { value: 1 }
+    }
+    false branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_INT_LITERAL> { value: 2 }
+    }
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_INT_LITERAL> { value: 1 }
+    }
+    false branch: <AST_INT_LITERAL> { value: 2 }
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_INT_LITERAL> { value: 1 }
+    false branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_INT_LITERAL> { value: 2 }
+    }
+}

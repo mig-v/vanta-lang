@@ -1,0 +1,9 @@
+# test variable declarations of all supported primitive types
+var a = 10;
+var b = 3.14;
+var c = .314;
+var d = 0.314;
+var e = true;
+var f = false;
+var g = "test string";
+var h = null; 

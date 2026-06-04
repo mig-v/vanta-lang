@@ -1,0 +1,19 @@
+# test range with no step and single statement
+for i in 0..10
+    i;
+
+# test range with no step and block with break keyword
+for i in 0..10
+{
+    break;
+}
+
+# test range with explicit step
+for i in 0..10..2
+    i;
+
+# test range with explicit negative step and continue keyword
+for i in 10..0..-1
+{
+    continue;
+}
