@@ -33,4 +33,4 @@ struct Test
     {                                                                                         \
         std::cerr << "mismatched lexemes expected " << expected << " got " << actual << "\n"; \
         return false;                                                                         \
-    }
+    }                                                                                         \

@@ -3,12 +3,13 @@
 #include "test_suite/test.h"
 #include "test_suite/test_suite.h"
 
-#include "lexer/lexer.h"
-
 class LexerTestSuite : public TestSuite
 {
 public:
 	LexerTestSuite();
+
+protected:
+	void internal_entry() override;
 private:
 	bool test_literals();
 	bool test_keywords();
@@ -17,4 +18,5 @@ private:
 	bool test_comparison();
 	bool test_arithmetic();
 	bool test_delimiters();
+	bool test_bitwise();
 };
