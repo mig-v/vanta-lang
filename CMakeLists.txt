@@ -8,6 +8,11 @@ add_executable(vanta-lang
 
                src/core/arena_block.h
                src/core/memory_arena.h
+               src/core/diagnostic.h
+               src/core/diagnostic.cpp
+               src/core/pipeline_context.h
+               src/core/interpreter.h
+               src/core/interpreter.cpp
 
                src/lexer/lexer.h
                src/lexer/lexer.cpp
@@ -17,6 +22,9 @@ add_executable(vanta-lang
                src/parser/ast.cpp
                src/parser/parser.h
                src/parser/parser.cpp
+
+               src/semantics/semantic_analyzer.h
+               src/semantics/semantic_analyzer.cpp
 
                src/utils/debug_utils.h
                src/utils/debug_utils.cpp
