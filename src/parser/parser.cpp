@@ -3,8 +3,9 @@
 #include "parser/parser.h"
 #include "utils/debug_utils.h"
 
-void Parser::parse_tokens(std::vector<Token>* tokens)
+void Parser::parse_tokens(std::vector<Token>* tokens, PipelineContext* ctx)
 {
+	this->ctx = ctx;
 	this->currentIndex = 0;
 	this->tokens = tokens;
 	this->inFnDecl = false;
@@ -61,7 +62,7 @@ ASTNode* Parser::var_decl()
 	ASTNode* initializer = expression();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after variable declaration");
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_VAR_DECL,
 		start->line,
 		start->column,
@@ -104,7 +105,7 @@ ASTNode* Parser::fn_decl()
 	ASTNode* body = block();
 	inFnDecl = false;
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_FN_DECL,
 		start->line,
 		start->column,
@@ -141,7 +142,7 @@ ASTNode* Parser::class_decl()
 	assert_current(TokenKind::TOKEN_R_BRACE, "Expect '}' after class methods and fields");
 	inClassDecl = false;
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_CLASS_DECL,
 		start->line,
 		start->column,
@@ -164,7 +165,7 @@ ASTNode* Parser::if_stmt()
 		falseBranch = statement();
 	}
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_IF,
 		start->column,
 		start->line,
@@ -178,7 +179,7 @@ ASTNode* Parser::while_stmt()
 	ASTNode* condition = expression();
 	ASTNode* body = statement();
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_WHILE,
 		start->line,
 		start->column,
@@ -196,7 +197,7 @@ ASTNode* Parser::for_stmt()
 	ASTNode* iterable = for_iterable();
 	ASTNode* body = statement();
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_FOR,
 		start->line,
 		start->column,
@@ -226,7 +227,7 @@ ASTNode* Parser::for_iterable()
 			step = expression();
 		}
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_RANGE,
 			rangeStart->line,
 			rangeStart->column,
@@ -249,7 +250,7 @@ ASTNode* Parser::return_stmt()
 
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after return");
 
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_RETURN,
 		start->line,
 		start->column,
@@ -260,7 +261,7 @@ ASTNode* Parser::break_stmt()
 {
 	Token* start = advance();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after break");
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_BREAK,
 		start->line,
 		start->column,
@@ -271,7 +272,7 @@ ASTNode* Parser::continue_stmt()
 {
 	Token* start = advance();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after continue");
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_CONTINUE,
 		start->line,
 		start->column,
@@ -299,7 +300,7 @@ ASTNode* Parser::block()
 	}
 
 	assert_current(TokenKind::TOKEN_R_BRACE, "Expect '}' to close block");
-	return arena.alloc<ASTNode>(
+	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_BLOCK,
 		start->line,
 		start->column,
@@ -325,7 +326,7 @@ ASTNode* Parser::assignment()
 		Token* op = advance();
 		ASTNode* rhs = assignment();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_ASSIGNMENT,
 			lhs->line,
 			lhs->column,
@@ -343,7 +344,7 @@ ASTNode* Parser::logical_or()
 	{
 		Token* op = advance();
 		ASTNode* rhs = logical_and();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_LOGICAL_EXPR,
 			lhs->line,
 			lhs->column,
@@ -361,7 +362,7 @@ ASTNode* Parser::logical_and()
 	{
 		Token* op = advance();
 		ASTNode* rhs = equality();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_LOGICAL_EXPR,
 			lhs->line,
 			lhs->column,
@@ -379,7 +380,7 @@ ASTNode* Parser::equality()
 	{
 		Token* op = advance();
 		ASTNode* rhs = comparison();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -397,7 +398,7 @@ ASTNode* Parser::comparison()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_or();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -415,7 +416,7 @@ ASTNode* Parser::bitwise_or()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_xor();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -433,7 +434,7 @@ ASTNode* Parser::bitwise_xor()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_and();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -451,7 +452,7 @@ ASTNode* Parser::bitwise_and()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_shift();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -469,7 +470,7 @@ ASTNode* Parser::bitwise_shift()
 	{
 		Token* op = advance();
 		ASTNode* rhs = term();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -487,7 +488,7 @@ ASTNode* Parser::term()
 	{
 		Token* op = advance();
 		ASTNode* rhs = factor();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -505,7 +506,7 @@ ASTNode* Parser::factor()
 	{
 		Token* op = advance();
 		ASTNode* rhs = power();
-		lhs = arena.alloc<ASTNode>(
+		lhs = ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -523,7 +524,7 @@ ASTNode* Parser::power()
 	{
 		Token* op = advance();
 		ASTNode* exponent = power();
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			base->line,
 			base->column,
@@ -539,7 +540,7 @@ ASTNode* Parser::unary()
 	{
 		Token* op = advance();
 		ASTNode* expr = unary();
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_UNARY_EXPR,
 			op->line,
 			op->column,
@@ -571,7 +572,7 @@ ASTNode* Parser::postfix()
 			}
 
 			assert_current(TokenKind::TOKEN_R_PAREN, "Expect ')' after fn arguments");
-			expr = arena.alloc<ASTNode>(
+			expr = ctx->arena.alloc<ASTNode>(
 				ASTKind::AST_FN_CALL,
 				start->line,
 				start->column,
@@ -582,7 +583,7 @@ ASTNode* Parser::postfix()
 			Token* start = advance();
 			ASTNode* index = expression();
 			assert_current(TokenKind::TOKEN_R_BRACKET, "Expect ']' after array index");
-			expr = arena.alloc<ASTNode>(
+			expr = ctx->arena.alloc<ASTNode>(
 				ASTKind::AST_ARRAY_ACCESS,
 				start->line,
 				start->column,
@@ -592,7 +593,7 @@ ASTNode* Parser::postfix()
 		{
 			Token* start = advance();
 			Token* identifier = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect identifier when accessing class fields");
-			expr = arena.alloc<ASTNode>(
+			expr = ctx->arena.alloc<ASTNode>(
 				ASTKind::AST_FIELD_ACCESS,
 				start->line,
 				start->column,
@@ -611,7 +612,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_INT_LITERAL,
 			token->line,
 			token->column,
@@ -622,7 +623,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_FLOAT_LITERAL,
 			token->line,
 			token->column,
@@ -633,7 +634,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_STRING_LITERAL,
 			token->line,
 			token->column,
@@ -644,7 +645,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BOOL_LITERAL,
 			token->line,
 			token->column,
@@ -655,7 +656,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_BOOL_LITERAL,
 			token->line,
 			token->column,
@@ -666,7 +667,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_NULL,
 			token->line,
 			token->column,
@@ -677,7 +678,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_IDENTIFIER,
 			token->line,
 			token->column,
@@ -695,7 +696,7 @@ ASTNode* Parser::primary()
 	if (peek() == TokenKind::TOKEN_THIS)
 	{
 		Token* start = advance();
-		return arena.alloc<ASTNode>(
+		return ctx->arena.alloc<ASTNode>(
 			ASTKind::AST_THIS,
 			start->line,
 			start->column,
@@ -794,10 +795,10 @@ Token* Parser::assert_current(TokenKind kind, const std::string& errorMsg)
 void Parser::throw_error(const std::string& errorMsg)
 {
 	// if there are tokens left, use the top token as the error token, if not we can settle for the previously consumed token
-	Token* error_token = (tokens_left()) ? advance() : prev_token();
+	Token* errorToken = (tokens_left()) ? advance() : prev_token();
 
-	if (error_token)
-		std::cout << "Parse error at line: " << error_token->line << " col: " << error_token->column << "\n" << errorMsg << "\n";
+	if (errorToken)
+		ctx->reporter.submit_diagnostic({ Phase::Parser, errorMsg, errorToken->line, errorToken->column });
 
 	throw ParseError();
 }

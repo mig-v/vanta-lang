@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/pipeline_context.h"
 #include "core/memory_arena.h"
 #include "lexer/token.h"
 #include "parser/ast.h"
@@ -13,7 +14,7 @@ class Parser
 {
 public:
 	Parser() = default;
-	void parse_tokens(std::vector<Token>* tokens);
+	void parse_tokens(std::vector<Token>* tokens, PipelineContext* ctx);
 	
 	inline const std::vector<ASTNode*> get_ast() { return ast; }
 
@@ -65,7 +66,8 @@ private:
 	void throw_error(const std::string& errorMsg);
 	void synchronize();
 
-	MemoryArena arena;
+	//MemoryArena arena;
+	PipelineContext* ctx;
 	std::vector<Token>* tokens;
 	std::vector<ASTNode*> ast;
 	size_t currentIndex;
