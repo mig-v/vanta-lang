@@ -31,9 +31,10 @@ void ParserTestSuite::regenerate_ast_snapshots()
     {
         Lexer lexer;
         Parser parser;
+        PipelineContext ctx;
 
         lexer.lex_file(PROJECT_ROOT"/tests/parser/" + test.name + ".va");
-        parser.parse_tokens(lexer.get_tokens_ptr());
+        parser.parse_tokens(lexer.get_tokens_ptr(), &ctx);
 
         std::ofstream snapshot(PROJECT_ROOT"/tests/parser/" + test.name + ".ast");
         snapshot << Utils::serialize_ast(parser.get_ast());
@@ -46,9 +47,10 @@ void ParserTestSuite::internal_entry()
     {
         Lexer lexer;
         Parser parser;
+        PipelineContext ctx;
 
         lexer.lex_file(PROJECT_ROOT"/tests/parser/" + test.name + ".va");
-        parser.parse_tokens(lexer.get_tokens_ptr());
+        parser.parse_tokens(lexer.get_tokens_ptr(), &ctx);
 
         std::ifstream snapshot(PROJECT_ROOT"/tests/parser/" + test.name + ".ast");
         std::string expectedAst = std::string((std::istreambuf_iterator<char>(snapshot)), std::istreambuf_iterator<char>());
