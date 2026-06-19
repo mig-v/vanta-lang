@@ -26,6 +26,19 @@ add_executable(vanta-lang
                src/semantics/semantic_analyzer.h
                src/semantics/semantic_analyzer.cpp
 
+               src/codegen/codegen.h
+               src/codegen/codegen.cpp
+               src/codegen/opcode.h
+               src/codegen/value.h
+               src/codegen/environment.h
+               src/codegen/environment.cpp
+               src/codegen/chunk.h
+
+               src/runtime/runtime.h
+               src/runtime/runtime.cpp
+               src/runtime/vm.h
+               src/runtime/vm.cpp
+
                src/utils/debug_utils.h
                src/utils/debug_utils.cpp
 

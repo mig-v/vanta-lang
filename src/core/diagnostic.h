@@ -6,7 +6,8 @@
 enum class Phase
 {
 	Parser,
-	Semantic
+	Semantic,
+	Codegen
 };
 
 struct Diagnostic
@@ -23,6 +24,7 @@ struct Diagnostic
 class DiagnosticReporter
 {
 public:
+	bool has_errors();
 	void log_diagnostics();
 	void submit_diagnostic(const Diagnostic& diagnostic);
 private:

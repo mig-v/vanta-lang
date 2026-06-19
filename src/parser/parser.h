@@ -23,6 +23,7 @@ private:
 	ASTNode* var_decl();
 	ASTNode* fn_decl();
 	ASTNode* class_decl();
+	ASTNode* field_decl();
 	ASTNode* if_stmt();
 	ASTNode* while_stmt();
 	ASTNode* for_stmt();

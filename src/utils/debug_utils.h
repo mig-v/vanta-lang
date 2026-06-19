@@ -5,6 +5,7 @@
 
 #include "lexer/token.h"
 #include "parser/ast.h"
+#include "codegen/codegen.h"
 
 namespace Utils
 {
@@ -15,4 +16,11 @@ namespace Utils
 	const char* ast_kind_to_string(ASTKind kind);
 	std::string serialize_ast(const std::vector<ASTNode*>& ast);
 	void serialize_ast_node(ASTNode* node, int depth, std::ostringstream& oss, bool isField);
+
+	const char* opcode_to_string(Opcode opcode);
+	int get_opcode_operand_count(Opcode opcode);
+	std::string disassemble_module(Module* module);
+	void disassemble_value(const Value& value, std::ostringstream& oss, int depth);
+	void disassemble_chunk(Chunk* chunk, std::ostringstream& oss, int depth);
+	void disassemble_class_decl(ClassDecl* decl, std::ostringstream& oss, int depth);
 }

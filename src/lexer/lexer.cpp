@@ -60,6 +60,9 @@ bool Lexer::lex_file(const std::string& filepath)
 	{
 		skip_whitespace();
 
+		if (eof())
+			break;
+
 		char current = peek();
 
 		// numbers can be ints or floats so we need to check if the first character is a digit or a '.' since stuff like .10 is valid
@@ -294,10 +297,15 @@ bool Lexer::lex_file(const std::string& filepath)
 					lex_string();
 					break;
 				}
+
+				default:
+				{
+					std::cout << "lex, default, lex_error called on: " << (int)current << std::endl;
+					lex_error();
+					break;
+				}
 			}
 		}
-
-		line++;
 	}
 
 	inFile.close();
@@ -364,6 +372,12 @@ void Lexer::skip_whitespace()
 
 	while (current == ' ' || current == '\n' || current == '\t')
 	{
+		if (current == '\n')
+		{
+			line++;
+			column = 0;
+		}
+
 		advance();
 		current = peek();
 	}
@@ -443,6 +457,23 @@ void Lexer::lex_string()
 	tokens.emplace_back(token);
 }
 
+void Lexer::lex_error()
+{
+	Token token;
+	token.column = column;
+	token.line = line;
+	token.kind = TokenKind::TOKEN_INVALID;
+
+	while (!eof() && peek() != '\n')
+		token.tokenLiteral += advance();
+
+	// consume the newline character
+	if (!eof())
+		advance();
+
+	tokens.emplace_back(token);
+}
+
 void Lexer::emit_token(TokenKind kind)
 {
 	Token token;
@@ -461,6 +492,9 @@ void Lexer::advance_until_newline()
 	// consume the newline character
 	if (!eof())
 		advance();
+
+	line++;
+	column = 0;
 }
 
 void Lexer::dump_tokens()

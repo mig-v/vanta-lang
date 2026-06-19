@@ -33,15 +33,15 @@ ASTNode* Parser::statement()
 		if (peek() == TokenKind::TOKEN_RETURN) return return_stmt();
 		if (peek() == TokenKind::TOKEN_BREAK) return break_stmt();
 		if (peek() == TokenKind::TOKEN_CONTINUE) return continue_stmt();
-		if (peek() == TokenKind::TOKEN_L_BRACE) return block();
+
+		// fall back to expr_stmt
+		return expr_stmt();
 	}
 	catch (const ParseError& error)
 	{
 		synchronize();
 		return nullptr;
 	}
-
-	return expr_stmt();
 }
 
 ASTNode* Parser::var_decl()
@@ -132,7 +132,7 @@ ASTNode* Parser::class_decl()
 	while (tokens_left())
 	{
 		if (peek() == TokenKind::TOKEN_VAR)
-			members.push_back(var_decl());
+			members.push_back(field_decl());
 		else if (peek() == TokenKind::TOKEN_FN)
 			members.push_back(fn_decl());
 		else
@@ -149,20 +149,36 @@ ASTNode* Parser::class_decl()
 		ASTData(std::in_place_type<ASTClassDecl>, identifier->tokenLiteral, std::move(members)));
 }
 
+ASTNode* Parser::field_decl()
+{
+	// advance through the 'var' keyword
+	Token* start = advance();
+
+	// assert that an identifier and ';' tokens are found and advance through them
+	Token* identifier = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect identifier in variable declaration");
+	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after field name");
+
+	return ctx->arena.alloc<ASTNode>(
+		ASTKind::AST_VAR_DECL,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTVarDecl>, identifier->tokenLiteral, nullptr));
+}
+
 ASTNode* Parser::if_stmt()
 {
 	// syntax: 'if' <expression> <statement> ['else' <statement>]?
 	// advance through 'if' token, collect the condition, collect the true branch, and by default the false branch is null since it's not required
 	Token* start = advance();
 	ASTNode* condition = expression();
-	ASTNode* trueBranch = statement();
+	ASTNode* trueBranch = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 	ASTNode* falseBranch = nullptr;
 
 	// check to see if there's an else branch
 	if (peek() == TokenKind::TOKEN_ELSE)
 	{
 		advance();
-		falseBranch = statement();
+		falseBranch = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 	}
 
 	return ctx->arena.alloc<ASTNode>(
@@ -177,7 +193,7 @@ ASTNode* Parser::while_stmt()
 	// syntax: 'while' <expression> <statement>
 	Token* start = advance();
 	ASTNode* condition = expression();
-	ASTNode* body = statement();
+	ASTNode* body = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 
 	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_WHILE,
@@ -195,7 +211,7 @@ ASTNode* Parser::for_stmt()
 	assert_current(TokenKind::TOKEN_IN, "Expect 'in' when declaring for loop");
 
 	ASTNode* iterable = for_iterable();
-	ASTNode* body = statement();
+	ASTNode* body = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 
 	return ctx->arena.alloc<ASTNode>(
 		ASTKind::AST_FOR,
@@ -283,7 +299,16 @@ ASTNode* Parser::expr_stmt()
 {
 	ASTNode* expr = expression();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after expression");
-	return expr;
+
+	// if an assignment is returned, don't wrap it in an expr_stmt
+	if (expr->kind == ASTKind::AST_ASSIGNMENT)
+		return expr;
+
+	return ctx->arena.alloc<ASTNode>(
+		ASTKind::AST_EXPR_STMT,
+		expr->line,
+		expr->column,
+		ASTData(std::in_place_type<ASTExprStmt>, expr));
 }
 
 ASTNode* Parser::block()

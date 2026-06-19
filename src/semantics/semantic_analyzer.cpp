@@ -128,6 +128,12 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 		{
 			const ASTClassDecl& data = std::get<ASTClassDecl>(node->data);
 
+			if (classDeclDepth > 0)
+			{
+				ctx->reporter.submit_diagnostic({ Phase::Semantic, "nested classes are not allowed", node->line, node->column });
+				break;
+			}
+
 			classMembers.clear();
 			classDeclDepth++;
 

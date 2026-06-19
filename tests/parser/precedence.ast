@@ -1,29 +1,6 @@
-<AST_BINARY_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: +
-    lhs: <AST_INT_LITERAL> { value: 2 }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: *
-        lhs: <AST_INT_LITERAL> { value: 3 }
-        rhs: <AST_INT_LITERAL> { value: 4 }
-    }
-}
-<AST_BINARY_EXPR>
-{
-    operator: +
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: *
-        lhs: <AST_INT_LITERAL> { value: 2 }
-        rhs: <AST_INT_LITERAL> { value: 3 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 4 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: -
-    lhs: <AST_BINARY_EXPR>
+    expr: <AST_BINARY_EXPR>
     {
         operator: +
         lhs: <AST_INT_LITERAL> { value: 2 }
@@ -34,261 +11,353 @@
             rhs: <AST_INT_LITERAL> { value: 4 }
         }
     }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: /
-        lhs: <AST_INT_LITERAL> { value: 1 }
-        rhs: <AST_INT_LITERAL> { value: 2 }
-    }
 }
-<AST_BINARY_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: **
-    lhs: <AST_INT_LITERAL> { value: 2 }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: **
-        lhs: <AST_INT_LITERAL> { value: 3 }
-        rhs: <AST_INT_LITERAL> { value: 2 }
-    }
-}
-<AST_BINARY_EXPR>
-{
-    operator: **
-    lhs: <AST_UNARY_EXPR>
-    {
-        operator: -
-        expr: <AST_INT_LITERAL> { value: 2 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 2 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: ==
-    lhs: <AST_BINARY_EXPR>
+    expr: <AST_BINARY_EXPR>
     {
         operator: +
-        lhs: <AST_INT_LITERAL> { value: 1 }
-        rhs: <AST_INT_LITERAL> { value: 2 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 3 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: ==
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: <
-        lhs: <AST_INT_LITERAL> { value: 1 }
-        rhs: <AST_INT_LITERAL> { value: 2 }
-    }
-    rhs: <AST_BOOL_LITERAL> { value: 1 }
-}
-<AST_LOGICAL_EXPR>
-{
-    operator: or
-    lhs: <AST_BOOL_LITERAL> { value: 1 }
-    rhs: <AST_LOGICAL_EXPR>
-    {
-        operator: and
-        lhs: <AST_BOOL_LITERAL> { value: 0 }
-        rhs: <AST_BOOL_LITERAL> { value: 0 }
-    }
-}
-<AST_LOGICAL_EXPR>
-{
-    operator: and
-    lhs: <AST_UNARY_EXPR>
-    {
-        operator: not
-        expr: <AST_BOOL_LITERAL> { value: 1 }
-    }
-    rhs: <AST_BOOL_LITERAL> { value: 0 }
-}
-<AST_LOGICAL_EXPR>
-{
-    operator: or
-    lhs: <AST_UNARY_EXPR>
-    {
-        operator: not
-        expr: <AST_BOOL_LITERAL> { value: 1 }
-    }
-    rhs: <AST_BOOL_LITERAL> { value: 0 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: ^
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: &
-        lhs: <AST_INT_LITERAL> { value: 10 }
-        rhs: <AST_INT_LITERAL> { value: 10 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 10 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: |
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: ^
-        lhs: <AST_INT_LITERAL> { value: 10 }
-        rhs: <AST_INT_LITERAL> { value: 10 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 10 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: |
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: &
-        lhs: <AST_INT_LITERAL> { value: 10 }
-        rhs: <AST_INT_LITERAL> { value: 10 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 10 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: <<
-    lhs: <AST_INT_LITERAL> { value: 10 }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 1 }
-        rhs: <AST_INT_LITERAL> { value: 2 }
-    }
-}
-<AST_BINARY_EXPR>
-{
-    operator: ==
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 2 }
-        rhs: <AST_BINARY_EXPR>
-        {
-            operator: *
-            lhs: <AST_INT_LITERAL> { value: 3 }
-            rhs: <AST_INT_LITERAL> { value: 4 }
-        }
-    }
-    rhs: <AST_INT_LITERAL> { value: 14 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: ==
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 1 }
-        rhs: <AST_BINARY_EXPR>
+        lhs: <AST_BINARY_EXPR>
         {
             operator: *
             lhs: <AST_INT_LITERAL> { value: 2 }
             rhs: <AST_INT_LITERAL> { value: 3 }
         }
-    }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 3 }
-        rhs: <AST_BINARY_EXPR>
-        {
-            operator: *
-            lhs: <AST_INT_LITERAL> { value: 4 }
-            rhs: <AST_INT_LITERAL> { value: 0 }
-        }
+        rhs: <AST_INT_LITERAL> { value: 4 }
     }
 }
-<AST_LOGICAL_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: or
-    lhs: <AST_BOOL_LITERAL> { value: 1 }
-    rhs: <AST_LOGICAL_EXPR>
+    expr: <AST_BINARY_EXPR>
     {
-        operator: and
-        lhs: <AST_BOOL_LITERAL> { value: 0 }
-        rhs: <AST_BINARY_EXPR>
-        {
-            operator: ==
-            lhs: <AST_INT_LITERAL> { value: 1 }
-            rhs: <AST_INT_LITERAL> { value: 1 }
-        }
-    }
-}
-<AST_BINARY_EXPR>
-{
-    operator: +
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: *
+        operator: -
         lhs: <AST_BINARY_EXPR>
         {
-            operator: **
+            operator: +
             lhs: <AST_INT_LITERAL> { value: 2 }
+            rhs: <AST_BINARY_EXPR>
+            {
+                operator: *
+                lhs: <AST_INT_LITERAL> { value: 3 }
+                rhs: <AST_INT_LITERAL> { value: 4 }
+            }
+        }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: /
+            lhs: <AST_INT_LITERAL> { value: 1 }
+            rhs: <AST_INT_LITERAL> { value: 2 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: **
+        lhs: <AST_INT_LITERAL> { value: 2 }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: **
+            lhs: <AST_INT_LITERAL> { value: 3 }
+            rhs: <AST_INT_LITERAL> { value: 2 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: **
+        lhs: <AST_UNARY_EXPR>
+        {
+            operator: -
+            expr: <AST_INT_LITERAL> { value: 2 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 2 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: ==
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 1 }
             rhs: <AST_INT_LITERAL> { value: 2 }
         }
         rhs: <AST_INT_LITERAL> { value: 3 }
     }
-    rhs: <AST_INT_LITERAL> { value: 1 }
 }
-<AST_BINARY_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: *
-    lhs: <AST_BINARY_EXPR>
+    expr: <AST_BINARY_EXPR>
     {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 2 }
-        rhs: <AST_INT_LITERAL> { value: 3 }
-    }
-    rhs: <AST_INT_LITERAL> { value: 4 }
-}
-<AST_BINARY_EXPR>
-{
-    operator: *
-    lhs: <AST_INT_LITERAL> { value: 2 }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 3 }
-        rhs: <AST_INT_LITERAL> { value: 4 }
+        operator: ==
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: <
+            lhs: <AST_INT_LITERAL> { value: 1 }
+            rhs: <AST_INT_LITERAL> { value: 2 }
+        }
+        rhs: <AST_BOOL_LITERAL> { value: 1 }
     }
 }
-<AST_BINARY_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: *
-    lhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 2 }
-        rhs: <AST_INT_LITERAL> { value: 3 }
-    }
-    rhs: <AST_BINARY_EXPR>
-    {
-        operator: +
-        lhs: <AST_INT_LITERAL> { value: 4 }
-        rhs: <AST_INT_LITERAL> { value: 5 }
-    }
-}
-<AST_UNARY_EXPR>
-{
-    operator: not
     expr: <AST_LOGICAL_EXPR>
     {
         operator: or
         lhs: <AST_BOOL_LITERAL> { value: 1 }
+        rhs: <AST_LOGICAL_EXPR>
+        {
+            operator: and
+            lhs: <AST_BOOL_LITERAL> { value: 0 }
+            rhs: <AST_BOOL_LITERAL> { value: 0 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_LOGICAL_EXPR>
+    {
+        operator: and
+        lhs: <AST_UNARY_EXPR>
+        {
+            operator: not
+            expr: <AST_BOOL_LITERAL> { value: 1 }
+        }
         rhs: <AST_BOOL_LITERAL> { value: 0 }
     }
 }
-<AST_BINARY_EXPR>
+<AST_EXPR_STMT>
 {
-    operator: **
-    lhs: <AST_BINARY_EXPR>
+    expr: <AST_LOGICAL_EXPR>
+    {
+        operator: or
+        lhs: <AST_UNARY_EXPR>
+        {
+            operator: not
+            expr: <AST_BOOL_LITERAL> { value: 1 }
+        }
+        rhs: <AST_BOOL_LITERAL> { value: 0 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: ^
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: &
+            lhs: <AST_INT_LITERAL> { value: 10 }
+            rhs: <AST_INT_LITERAL> { value: 10 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 10 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: |
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: ^
+            lhs: <AST_INT_LITERAL> { value: 10 }
+            rhs: <AST_INT_LITERAL> { value: 10 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 10 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: |
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: &
+            lhs: <AST_INT_LITERAL> { value: 10 }
+            rhs: <AST_INT_LITERAL> { value: 10 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 10 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: <<
+        lhs: <AST_INT_LITERAL> { value: 10 }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 1 }
+            rhs: <AST_INT_LITERAL> { value: 2 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: ==
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 2 }
+            rhs: <AST_BINARY_EXPR>
+            {
+                operator: *
+                lhs: <AST_INT_LITERAL> { value: 3 }
+                rhs: <AST_INT_LITERAL> { value: 4 }
+            }
+        }
+        rhs: <AST_INT_LITERAL> { value: 14 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: ==
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 1 }
+            rhs: <AST_BINARY_EXPR>
+            {
+                operator: *
+                lhs: <AST_INT_LITERAL> { value: 2 }
+                rhs: <AST_INT_LITERAL> { value: 3 }
+            }
+        }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 3 }
+            rhs: <AST_BINARY_EXPR>
+            {
+                operator: *
+                lhs: <AST_INT_LITERAL> { value: 4 }
+                rhs: <AST_INT_LITERAL> { value: 0 }
+            }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_LOGICAL_EXPR>
+    {
+        operator: or
+        lhs: <AST_BOOL_LITERAL> { value: 1 }
+        rhs: <AST_LOGICAL_EXPR>
+        {
+            operator: and
+            lhs: <AST_BOOL_LITERAL> { value: 0 }
+            rhs: <AST_BINARY_EXPR>
+            {
+                operator: ==
+                lhs: <AST_INT_LITERAL> { value: 1 }
+                rhs: <AST_INT_LITERAL> { value: 1 }
+            }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
     {
         operator: +
-        lhs: <AST_INT_LITERAL> { value: 2 }
-        rhs: <AST_INT_LITERAL> { value: 3 }
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: *
+            lhs: <AST_BINARY_EXPR>
+            {
+                operator: **
+                lhs: <AST_INT_LITERAL> { value: 2 }
+                rhs: <AST_INT_LITERAL> { value: 2 }
+            }
+            rhs: <AST_INT_LITERAL> { value: 3 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 1 }
     }
-    rhs: <AST_INT_LITERAL> { value: 2 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: *
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 2 }
+            rhs: <AST_INT_LITERAL> { value: 3 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 4 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: *
+        lhs: <AST_INT_LITERAL> { value: 2 }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 3 }
+            rhs: <AST_INT_LITERAL> { value: 4 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: *
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 2 }
+            rhs: <AST_INT_LITERAL> { value: 3 }
+        }
+        rhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 4 }
+            rhs: <AST_INT_LITERAL> { value: 5 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_UNARY_EXPR>
+    {
+        operator: not
+        expr: <AST_LOGICAL_EXPR>
+        {
+            operator: or
+            lhs: <AST_BOOL_LITERAL> { value: 1 }
+            rhs: <AST_BOOL_LITERAL> { value: 0 }
+        }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BINARY_EXPR>
+    {
+        operator: **
+        lhs: <AST_BINARY_EXPR>
+        {
+            operator: +
+            lhs: <AST_INT_LITERAL> { value: 2 }
+            rhs: <AST_INT_LITERAL> { value: 3 }
+        }
+        rhs: <AST_INT_LITERAL> { value: 2 }
+    }
 }

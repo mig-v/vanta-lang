@@ -7,7 +7,10 @@
         end: <AST_INT_LITERAL> { value: 10 }
         step:  (no step)
     }
-    body: <AST_IDENTIFIER> { identifier: i }
+    body: <AST_EXPR_STMT>
+    {
+        expr: <AST_IDENTIFIER> { identifier: i }
+    }
 }
 <AST_FOR>
 {
@@ -33,7 +36,10 @@
         end: <AST_INT_LITERAL> { value: 10 }
         step: <AST_INT_LITERAL> { value: 2 }
     }
-    body: <AST_IDENTIFIER> { identifier: i }
+    body: <AST_EXPR_STMT>
+    {
+        expr: <AST_IDENTIFIER> { identifier: i }
+    }
 }
 <AST_FOR>
 {

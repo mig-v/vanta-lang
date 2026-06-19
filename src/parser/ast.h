@@ -33,7 +33,8 @@ enum class ASTKind
 	AST_BREAK,
 	AST_CONTINUE,
 	AST_NULL,
-	AST_THIS
+	AST_THIS,
+	AST_EXPR_STMT
 };
 
 struct ASTIntLiteral
@@ -208,6 +209,12 @@ struct ASTFieldAccess
 	std::string field;
 };
 
+struct ASTExprStmt
+{
+	ASTExprStmt(ASTNode* expr) : expr(expr) {}
+	ASTNode* expr;
+};
+
 struct ASTBreak {};
 struct ASTContinue {};
 struct ASTNull {};
@@ -239,7 +246,8 @@ using ASTData = std::variant
 	ASTBreak,
 	ASTContinue,
 	ASTNull,
-	ASTThis
+	ASTThis,
+	ASTExprStmt
 >;
 
 struct ASTNode

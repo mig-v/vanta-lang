@@ -1,66 +1,90 @@
-<AST_FN_CALL>
+<AST_EXPR_STMT>
 {
-    callee: <AST_IDENTIFIER> { identifier: foo }
-    args: (none)
-}
-<AST_FN_CALL>
-{
-    callee: <AST_IDENTIFIER> { identifier: foo }
-    args: 
-    <AST_INT_LITERAL> { value: 1 }
-    <AST_INT_LITERAL> { value: 2 }
-}
-<AST_FN_CALL>
-{
-    callee: <AST_FN_CALL>
+    expr: <AST_FN_CALL>
     {
         callee: <AST_IDENTIFIER> { identifier: foo }
         args: (none)
     }
-    args: (none)
 }
-<AST_ARRAY_ACCESS>
+<AST_EXPR_STMT>
 {
-    array: <AST_IDENTIFIER> { identifier: arr }
-    index: <AST_INT_LITERAL> { value: 0 }
+    expr: <AST_FN_CALL>
+    {
+        callee: <AST_IDENTIFIER> { identifier: foo }
+        args: 
+        <AST_INT_LITERAL> { value: 1 }
+        <AST_INT_LITERAL> { value: 2 }
+    }
 }
-<AST_FIELD_ACCESS>
+<AST_EXPR_STMT>
 {
-    object: <AST_IDENTIFIER> { identifier: obj }
-    field_name: field
+    expr: <AST_FN_CALL>
+    {
+        callee: <AST_FN_CALL>
+        {
+            callee: <AST_IDENTIFIER> { identifier: foo }
+            args: (none)
+        }
+        args: (none)
+    }
 }
-<AST_FIELD_ACCESS>
+<AST_EXPR_STMT>
 {
-    object: <AST_FIELD_ACCESS>
+    expr: <AST_ARRAY_ACCESS>
+    {
+        array: <AST_IDENTIFIER> { identifier: arr }
+        index: <AST_INT_LITERAL> { value: 0 }
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FIELD_ACCESS>
     {
         object: <AST_IDENTIFIER> { identifier: obj }
         field_name: field
     }
-    field_name: nestedField
 }
-<AST_FN_CALL>
+<AST_EXPR_STMT>
 {
-    callee: <AST_FIELD_ACCESS>
+    expr: <AST_FIELD_ACCESS>
     {
-        object: <AST_IDENTIFIER> { identifier: obj }
-        field_name: foo
-    }
-    args: (none)
-}
-<AST_FIELD_ACCESS>
-{
-    object: <AST_ARRAY_ACCESS>
-    {
-        array: <AST_FN_CALL>
+        object: <AST_FIELD_ACCESS>
         {
-            callee: <AST_FIELD_ACCESS>
-            {
-                object: <AST_IDENTIFIER> { identifier: obj }
-                field_name: foo
-            }
-            args: (none)
+            object: <AST_IDENTIFIER> { identifier: obj }
+            field_name: field
         }
-        index: <AST_INT_LITERAL> { value: 0 }
+        field_name: nestedField
     }
-    field_name: field
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FN_CALL>
+    {
+        callee: <AST_FIELD_ACCESS>
+        {
+            object: <AST_IDENTIFIER> { identifier: obj }
+            field_name: foo
+        }
+        args: (none)
+    }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FIELD_ACCESS>
+    {
+        object: <AST_ARRAY_ACCESS>
+        {
+            array: <AST_FN_CALL>
+            {
+                callee: <AST_FIELD_ACCESS>
+                {
+                    object: <AST_IDENTIFIER> { identifier: obj }
+                    field_name: foo
+                }
+                args: (none)
+            }
+            index: <AST_INT_LITERAL> { value: 0 }
+        }
+        field_name: field
+    }
 }

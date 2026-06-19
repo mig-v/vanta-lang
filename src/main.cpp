@@ -5,9 +5,9 @@
 int main(int argc, char** argv)
 {
 	Interpreter interpreter;
-	interpreter.run();
-	//interpreter.run_tests();
+	interpreter.run_tests();
 
+	interpreter.run();
 
 	//Lexer lexer;
 	//Parser parser;

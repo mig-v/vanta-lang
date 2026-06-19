@@ -1,24 +1,36 @@
 <AST_IF>
 {
     condition: <AST_BOOL_LITERAL> { value: 1 }
-    true branch: <AST_INT_LITERAL> { value: 1 }
-    false branch:  (no branch)
-}
-<AST_IF>
-{
-    condition: <AST_BOOL_LITERAL> { value: 1 }
-    true branch: <AST_BLOCK>
+    true branch: <AST_EXPR_STMT>
     {
-        statements:
-        <AST_INT_LITERAL> { value: 1 }
+        expr: <AST_INT_LITERAL> { value: 1 }
     }
     false branch:  (no branch)
 }
 <AST_IF>
 {
     condition: <AST_BOOL_LITERAL> { value: 1 }
-    true branch: <AST_INT_LITERAL> { value: 1 }
-    false branch: <AST_INT_LITERAL> { value: 2 }
+    true branch: <AST_BLOCK>
+    {
+        statements:
+        <AST_EXPR_STMT>
+        {
+            expr: <AST_INT_LITERAL> { value: 1 }
+        }
+    }
+    false branch:  (no branch)
+}
+<AST_IF>
+{
+    condition: <AST_BOOL_LITERAL> { value: 1 }
+    true branch: <AST_EXPR_STMT>
+    {
+        expr: <AST_INT_LITERAL> { value: 1 }
+    }
+    false branch: <AST_EXPR_STMT>
+    {
+        expr: <AST_INT_LITERAL> { value: 2 }
+    }
 }
 <AST_IF>
 {
@@ -26,12 +38,18 @@
     true branch: <AST_BLOCK>
     {
         statements:
-        <AST_INT_LITERAL> { value: 1 }
+        <AST_EXPR_STMT>
+        {
+            expr: <AST_INT_LITERAL> { value: 1 }
+        }
     }
     false branch: <AST_BLOCK>
     {
         statements:
-        <AST_INT_LITERAL> { value: 2 }
+        <AST_EXPR_STMT>
+        {
+            expr: <AST_INT_LITERAL> { value: 2 }
+        }
     }
 }
 <AST_IF>
@@ -40,17 +58,29 @@
     true branch: <AST_BLOCK>
     {
         statements:
-        <AST_INT_LITERAL> { value: 1 }
+        <AST_EXPR_STMT>
+        {
+            expr: <AST_INT_LITERAL> { value: 1 }
+        }
     }
-    false branch: <AST_INT_LITERAL> { value: 2 }
+    false branch: <AST_EXPR_STMT>
+    {
+        expr: <AST_INT_LITERAL> { value: 2 }
+    }
 }
 <AST_IF>
 {
     condition: <AST_BOOL_LITERAL> { value: 1 }
-    true branch: <AST_INT_LITERAL> { value: 1 }
+    true branch: <AST_EXPR_STMT>
+    {
+        expr: <AST_INT_LITERAL> { value: 1 }
+    }
     false branch: <AST_BLOCK>
     {
         statements:
-        <AST_INT_LITERAL> { value: 2 }
+        <AST_EXPR_STMT>
+        {
+            expr: <AST_INT_LITERAL> { value: 2 }
+        }
     }
 }

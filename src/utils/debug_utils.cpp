@@ -1,3 +1,5 @@
+#include <iomanip>
+
 #include "debug_utils.h"
 
 namespace Utils
@@ -219,6 +221,7 @@ namespace Utils
 			case ASTKind::AST_BREAK: return "AST_BREAK";
 			case ASTKind::AST_CONTINUE: return "AST_CONTINUE";
 			case ASTKind::AST_THIS: return "AST_THIS";
+			case ASTKind::AST_EXPR_STMT: return "AST_EXPR_STMT";
 
 			default: return "UNIMPLEMENTED_AST_KIND";
 		}
@@ -270,7 +273,10 @@ namespace Utils
 					<< fieldIndent << "identifier: " << data.identifier << "\n"
 					<< fieldIndent << "initializer: ";
 
-				serialize_ast_node(data.initializer, depth + 1, oss, true);
+				if (data.initializer)
+					serialize_ast_node(data.initializer, depth + 1, oss, true);
+				else
+					oss << "(implicit null)\n";
 
 				oss << indent << "}\n";
 				break;
@@ -556,8 +562,229 @@ namespace Utils
 				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
 				break;
 			}
+			case ASTKind::AST_EXPR_STMT:
+			{
+				const ASTExprStmt& data = std::get<ASTExprStmt>(node->data);
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+
+				oss << fieldIndent << "expr: ";
+				serialize_ast_node(data.expr, depth + 1, oss, true);
+				oss << indent << "}\n";
+				break;
+			}
 			default:
 				oss << indent << "{ AST PRINT LOGIC NOT IMPLEMENTED }\n";
+		}
+	}
+
+	const char* opcode_to_string(Opcode opcode)
+	{
+		switch (opcode)
+		{
+			case Opcode::LOAD_CONST: return "LOAD_CONST";
+
+			case Opcode::STORE_GLOBAL: return "STORE_GLOBAL";
+			case Opcode::LOAD_GLOBAL: return "LOAD_GLOBAL"; 
+			case Opcode::STORE_LOCAL: return "STORE_LOCAL";
+			case Opcode::LOAD_LOCAL: return "LOAD_LOCAL";
+
+			case Opcode::ADD: return "ADD";
+			case Opcode::SUB: return "SUB";
+			case Opcode::MUL: return "MUL";
+			case Opcode::DIV: return "DIV";
+			case Opcode::MOD: return "MOD";
+			case Opcode::POW: return "POW";
+
+			case Opcode::LT: return "LT";
+			case Opcode::LTE: return "LTE";
+			case Opcode::GT: return "GT";
+			case Opcode::GTE: return "GTE";
+
+			case Opcode::EQ: return "EQ";
+			case Opcode::NEQ: return "NEQ";
+
+			case Opcode::AND: return "AND";
+			case Opcode::OR: return "OR";
+			case Opcode::XOR: return "XOR";
+			case Opcode::L_SHIFT: return "L_SHIFT";
+			case Opcode::R_SHIFT: return "R_SHIFT";
+
+			case Opcode::NOT: return "NOT";
+			case Opcode::NEG: return "NEG";
+			case Opcode::LOGICAL_NOT: return "LOGICAL_NOT";
+
+			case Opcode::JMP_IF_TRUE: return "JMP_IF_TRUE";
+			case Opcode::JMP_IF_FALSE: return "JMP_IF_FALSE";
+			case Opcode::JMP: return "JMP";
+
+			case Opcode::POP: return "POP";
+
+			case Opcode::RETURN: return "RETURN";
+			case Opcode::NULL_RETURN: return "NULL_RETURN";
+
+			case Opcode::CALL_FN: return "CALL_FN";
+
+			case Opcode::ARRAY_LOAD: return "ARRAY_LOAD";
+			case Opcode::ARRAY_STORE: return "ARRAY_STORE";
+
+			case Opcode::LOAD_FIELD: return "LOAD_FIELD";
+			case Opcode::STORE_FIELD: return "STORE_FIELD";
+
+			case Opcode::EXIT: return "EXIT";
+
+			default: return "OPCODE_NOT_FOUND";
+		}
+	}
+
+	int get_opcode_operand_count(Opcode opcode)
+	{
+		switch (opcode)
+		{
+			case Opcode::LOAD_CONST:
+			case Opcode::STORE_GLOBAL: 
+			case Opcode::LOAD_GLOBAL:
+			case Opcode::STORE_LOCAL: 
+			case Opcode::LOAD_LOCAL: 
+			case Opcode::JMP_IF_TRUE:
+			case Opcode::JMP_IF_FALSE: 
+			case Opcode::JMP:
+			case Opcode::CALL_FN:
+			case Opcode::LOAD_FIELD:
+			case Opcode::STORE_FIELD:
+				return 1;
+
+			case Opcode::ADD:
+			case Opcode::SUB:
+			case Opcode::MUL:
+			case Opcode::DIV:
+			case Opcode::POP:
+			case Opcode::ARRAY_LOAD:
+			case Opcode::ARRAY_STORE:
+			case Opcode::NOT:
+			case Opcode::NEG:
+			case Opcode::LOGICAL_NOT:
+			case Opcode::EXIT:
+				return 0;
+
+			default: return 0;
+		}
+	}
+
+	void disassemble_value(const Value& value, std::ostringstream& oss, int depth)
+	{
+		std::string indent(4 * depth, ' ');
+		oss << indent;
+
+		switch (value.kind)
+		{
+			case ValueKind::VALUE_INT:
+			{
+				oss << "<int>: " << std::get<int64_t>(value.data) << "\n";
+				break;
+			}
+			case ValueKind::VALUE_FLOAT:
+			{
+				oss << "<float>: " << std::get<double>(value.data) << "\n";
+				break;
+			}
+			case ValueKind::VALUE_STRING:
+			{
+				oss << "<str>: \"" << std::get<std::string>(value.data) << "\"\n";
+				break;
+			}
+			case ValueKind::VALUE_BOOL:
+			{
+				oss << "<bool>: " << std::get<bool>(value.data) << "\n";
+				break;
+			}
+			case ValueKind::VALUE_NULL:
+			{
+				oss << "<null>: (null)\n";
+				break;
+			}
+			case ValueKind::VALUE_FN:
+			{
+				Function* fn = std::get<Function*>(value.data);
+				oss << "<fn>: \"" << fn->name << "\" argc: " << fn->argc << " locals: " << fn->locals << "\n";
+				disassemble_chunk(fn->chunk, oss, depth + 1);
+				break;
+			}
+		}
+	}
+
+	std::string disassemble_module(Module* module)
+	{
+		std::ostringstream oss{};
+
+		oss << "module (\"" << module->name << "\", \"" << module->filepath << "\")\n{\n";
+		oss << "    " << "globals:\n";
+
+		for (const Value& value : module->globals)
+			disassemble_value(value, oss, 1);
+
+		oss << "\n";
+
+		disassemble_chunk(module->root->chunk, oss, 1);
+
+		oss << "\nclasses:\n";
+
+		for (ClassDecl* decl : module->classes)
+		{
+			disassemble_class_decl(decl, oss, 1);
+			oss << "\n\n";
+		}
+
+		oss << "}\n\n";
+
+		return oss.str();
+	}
+
+	void disassemble_chunk(Chunk* chunk, std::ostringstream& oss, int depth)
+	{
+		std::string indent(4 * depth, ' ');
+		oss << indent << "bytecode:\n";
+
+		size_t ip = 0;
+		while (ip < chunk->code.size())
+		{
+			Opcode opcode = static_cast<Opcode>(chunk->code[ip]);
+			oss << indent << std::setfill('0') << std::setw(5) << ip << std::setfill(' ') << " " << opcode_to_string(opcode);
+			int operandCount = get_opcode_operand_count(opcode);
+
+			for (int i = 0; i < operandCount; i++)
+			{
+				uint16_t operand = static_cast<uint16_t>(chunk->code[ip + 1]) | (static_cast<uint16_t>(chunk->code[ip + 2]) << 8);
+				oss << " " << operand;
+			}
+
+			oss << "\n";
+
+			ip += 1 + (operandCount * 2);
+		}
+
+		oss << "\n" << indent << "constants:\n";
+		for (const Value& value : chunk->constants)
+			disassemble_value(value, oss, depth);
+
+		oss << "\n";
+	}
+
+	void disassemble_class_decl(ClassDecl* decl, std::ostringstream& oss, int depth)
+	{
+		std::string indent(4 * depth, ' ');
+
+		oss << indent << decl->name << ":\n";
+		
+		for (const auto& field : decl->fields)
+			oss << indent << "<field>: " << field.first << ": slot [" << field.second << "]\n";
+
+		oss << "\n";
+
+		for (const auto& method : decl->methods)
+		{
+			oss << indent << "<method>: \"" << method.first << "\" argc: " << method.second->argc << " locals: " << method.second->locals << "\n";
+			disassemble_chunk(method.second->chunk, oss, depth + 1);
 		}
 	}
 }

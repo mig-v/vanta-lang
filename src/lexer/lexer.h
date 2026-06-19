@@ -26,6 +26,7 @@ private:
 	void lex_number();
 	void lex_identifier_or_keyword();
 	void lex_string();
+	void lex_error();
 	void emit_token(TokenKind kind);
 	void advance_until_newline();
 	void rewind();

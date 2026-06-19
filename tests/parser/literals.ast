@@ -1,8 +1,32 @@
-<AST_INT_LITERAL> { value: 10 }
-<AST_FLOAT_LITERAL> { value: 0.314 }
-<AST_FLOAT_LITERAL> { value: 0.314 }
-<AST_FLOAT_LITERAL> { value: 3.14 }
-<AST_BOOL_LITERAL> { value: 1 }
-<AST_BOOL_LITERAL> { value: 0 }
-<AST_STRING_LITERAL> { value: Vanta_Lang }
-<AST_NULL> { (null) }
+<AST_EXPR_STMT>
+{
+    expr: <AST_INT_LITERAL> { value: 10 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FLOAT_LITERAL> { value: 0.314 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FLOAT_LITERAL> { value: 0.314 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_FLOAT_LITERAL> { value: 3.14 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BOOL_LITERAL> { value: 1 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_BOOL_LITERAL> { value: 0 }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_STRING_LITERAL> { value: Vanta_Lang }
+}
+<AST_EXPR_STMT>
+{
+    expr: <AST_NULL> { (null) }
+}

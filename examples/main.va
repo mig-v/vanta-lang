@@ -1,0 +1,12 @@
+var x = 0;
+
+fn foo(x)
+{
+    for i in 0..3
+        for j in 0..14
+            x += 1;
+
+    return x;
+}
+
+var y = foo(x);
