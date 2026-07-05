@@ -43,6 +43,9 @@ namespace Utils
 			case TokenKind::TOKEN_NOT: return "TOKEN_NOT";
 			case TokenKind::TOKEN_IN:  return "TOKEN_IN";
 			case TokenKind::TOKEN_NULL: return "TOKEN_NULL";
+			case TokenKind::TOKEN_NEW:  return "TOKEN_NEW";
+			case TokenKind::TOKEN_IMPORT: return "TOKEN_IMPORT";
+			case TokenKind::TOKEN_AS: return "TOKEN_AS";
 
 			case TokenKind::TOKEN_L_PAREN: return "TOKEN_L_PAREN";
 			case TokenKind::TOKEN_R_PAREN: return "TOKEN_R_PAREN";
@@ -184,7 +187,10 @@ namespace Utils
 			case TokenKind::TOKEN_MODULO:
 			case TokenKind::TOKEN_POWER:
 			case TokenKind::TOKEN_INVALID:
+			case TokenKind::TOKEN_NEW:
 			case TokenKind::TOKEN_EOF:
+			case TokenKind::TOKEN_IMPORT:
+			case TokenKind::TOKEN_AS:
 				return false;
 
 			default: 
@@ -200,6 +206,7 @@ namespace Utils
 			case ASTKind::AST_FLOAT_LITERAL: return "AST_FLOAT_LITERAL";
 			case ASTKind::AST_STRING_LITERAL: return "AST_STRING_LITERAL";
 			case ASTKind::AST_BOOL_LITERAL: return "AST_BOOL_LITERAL";
+			case ASTKind::AST_ARRAY: return "AST_ARRAY";
 			case ASTKind::AST_VAR_DECL: return "AST_VAR_DECL";
 			case ASTKind::AST_FN_DECL: return "AST_FN_DECL";
 			case ASTKind::AST_BLOCK: return "AST_BLOCK";
@@ -222,6 +229,8 @@ namespace Utils
 			case ASTKind::AST_CONTINUE: return "AST_CONTINUE";
 			case ASTKind::AST_THIS: return "AST_THIS";
 			case ASTKind::AST_EXPR_STMT: return "AST_EXPR_STMT";
+			case ASTKind::AST_INSTANTIATION: return "AST_INSTANTIATION";
+			case ASTKind::AST_IMPORT_STMT: return "AST_IMPORT_STMT";
 
 			default: return "UNIMPLEMENTED_AST_KIND";
 		}
@@ -573,6 +582,47 @@ namespace Utils
 				oss << indent << "}\n";
 				break;
 			}
+			case ASTKind::AST_INSTANTIATION:
+			{
+				const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+				oss << fieldIndent << "class name: ";
+				
+				for (int i = 0; i < data.path.size(); i++)
+				{
+					oss << data.path[i];
+
+					if (i < data.path.size() - 1)
+						oss << ".";
+				}
+
+				oss << "\n";
+				oss << fieldIndent << "args: ";
+
+				if (data.args.size() == 0)
+					oss << "(none)";
+
+				oss << "\n";
+				for (ASTNode* arg : data.args)
+				{
+					oss << fieldIndent;
+					serialize_ast_node(arg, depth + 1, oss, true);
+				}
+
+				oss << indent << "}\n";
+				break;
+			}
+			case ASTKind::AST_IMPORT_STMT:
+			{
+				const ASTImportStmt& data = std::get<ASTImportStmt>(node->data);
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+				oss << fieldIndent << "import name: " << data.importName << "\n";
+				oss << fieldIndent << "alias name: " << data.alias << "\n";
+				oss << indent << "}\n";
+				break;
+			}
 			default:
 				oss << indent << "{ AST PRINT LOGIC NOT IMPLEMENTED }\n";
 		}
@@ -621,15 +671,20 @@ namespace Utils
 			case Opcode::POP: return "POP";
 
 			case Opcode::RETURN: return "RETURN";
-			case Opcode::NULL_RETURN: return "NULL_RETURN";
-
 			case Opcode::CALL_FN: return "CALL_FN";
 
+			case Opcode::MAKE_ARR: return "MAKE_ARR";
 			case Opcode::ARRAY_LOAD: return "ARRAY_LOAD";
 			case Opcode::ARRAY_STORE: return "ARRAY_STORE";
 
 			case Opcode::LOAD_FIELD: return "LOAD_FIELD";
 			case Opcode::STORE_FIELD: return "STORE_FIELD";
+			case Opcode::FOR_ITER_RANGE: return "FOR_ITER_RANGE";
+
+			case Opcode::MAKE_INSTANCE: return "MAKE_INSTANCE";
+			case Opcode::MAKE_MODULE_INSTANCE: return "MAKE_MODULE_INSTANCE";
+			case Opcode::CALL_METHOD: return "CALL_METHOD";
+
 
 			case Opcode::EXIT: return "EXIT";
 
@@ -641,6 +696,10 @@ namespace Utils
 	{
 		switch (opcode)
 		{
+			case Opcode::CALL_METHOD:
+				return 2;
+
+			case Opcode::MAKE_MODULE_INSTANCE:
 			case Opcode::LOAD_CONST:
 			case Opcode::STORE_GLOBAL: 
 			case Opcode::LOAD_GLOBAL:
@@ -652,6 +711,8 @@ namespace Utils
 			case Opcode::CALL_FN:
 			case Opcode::LOAD_FIELD:
 			case Opcode::STORE_FIELD:
+			case Opcode::MAKE_ARR:
+			case Opcode::MAKE_INSTANCE:
 				return 1;
 
 			case Opcode::ADD:
@@ -664,6 +725,7 @@ namespace Utils
 			case Opcode::NOT:
 			case Opcode::NEG:
 			case Opcode::LOGICAL_NOT:
+			case Opcode::FOR_ITER_RANGE:
 			case Opcode::EXIT:
 				return 0;
 
@@ -710,10 +772,21 @@ namespace Utils
 				disassemble_chunk(fn->chunk, oss, depth + 1);
 				break;
 			}
+			case ValueKind::VALUE_NATIVE_FN:
+			{
+				oss << "<native_fn>\n";
+				break;
+			}
+			case ValueKind::VALUE_MODULE:
+			{
+				Module* module = std::get<Module*>(value.data);
+				oss << "<module>: (name not stored yet)\n";
+				break;
+			}
 		}
 	}
 
-	std::string disassemble_module(Module* module)
+	std::string disassemble_compiled_module(CompiledModule* module)
 	{
 		std::ostringstream oss{};
 
@@ -756,11 +829,11 @@ namespace Utils
 			{
 				uint16_t operand = static_cast<uint16_t>(chunk->code[ip + 1]) | (static_cast<uint16_t>(chunk->code[ip + 2]) << 8);
 				oss << " " << operand;
+				ip += 2;
 			}
 
 			oss << "\n";
-
-			ip += 1 + (operandCount * 2);
+			ip++;
 		}
 
 		oss << "\n" << indent << "constants:\n";

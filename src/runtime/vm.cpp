@@ -4,36 +4,106 @@
 #include "runtime/vm.h"
 #include "codegen/opcode.h"
 #include "utils/debug_utils.h"
+#include "utils/value_utils.h"
+#include "runtime/built_ins.h"
+
+const std::unordered_map<std::string, NativeMethod> VM::arrayMethods =
+{
+	{ "add", Builtins::array_add },
+	{ "pop", Builtins::array_pop }
+};
+
+VM::VM()
+{
+	this->stack.reserve(256);
+}
+
+void VM::initialize_module(Module* module)
+{
+#ifdef _DEBUG
+	auto start = std::chrono::steady_clock::now();
+#endif
+
+	push_call_frame(module->root, CallFrameContext::Fn, module);
+	dispatch_loop();
+	cleanup_global_call_frame();
+
+#ifdef _DEBUG
+	auto end = std::chrono::steady_clock::now();
+	auto elapsed = end - start;
+	std::cout << "initialize module: " << module->name << "... took " << std::chrono::duration<double, std::milli>(elapsed).count() << (" ms") << std::endl;
+#endif
+}
 
 void VM::execute_module(Module* module)
 {
-	this->stack.reserve(256);
-	this->module = module;
-	
-	push_call_frame(module->root);
-
+#ifdef _DEBUG
+	std::cout << "\n[Program Output]\n";
 	auto start = std::chrono::steady_clock::now();
+#endif
+
+	push_call_frame(module->root, CallFrameContext::Fn, module);
 	dispatch_loop();
+
+#ifdef _DEBUG
 	auto end = std::chrono::steady_clock::now();
 	auto elapsed = end - start;
-	std::chrono::duration<double, std::milli> ms = elapsed;
-
-	std::ostringstream oss;
-	Utils::disassemble_value(module->globals[2], oss, 0);
-
-	std::cout << oss.str() << std::endl;
+	std::cout << "vm stack size after execution: " << stack.size() << std::endl;
+	std::cout << "main took... " << std::chrono::duration<double, std::milli>(elapsed).count() << (" ms") << std::endl;
+#endif
 
 	cleanup_global_call_frame();
-
-	std::cout << "vm stack size after execution: " << stack.size() << std::endl;
-	std::cout << ms.count() << " ms\n";
+	gc.log_stats();
 }
 
-void VM::push_call_frame(Function* fn)
+Module* VM::create_runtime_module(CompiledModule* module)
 {
-	callStack.emplace_back(fn, fn->chunk->code.data(), stack.size() - fn->argc);
-	stack.resize(stack.size() + fn->locals);
+	// create a runtime module object from this compiled module
+	Module* runtimeModule = gc.alloc_object<Module>();
+	runtimeModule->name = module->name;
+	runtimeModule->globals = module->globals;
+	runtimeModule->exports = module->exports;
+	runtimeModule->root = module->root;
+	runtimeModule->compileTimeClassDecls = module->classes;
+
+	for (ClassDecl* decl : module->classes)
+		runtimeModule->classMap[decl->name] = decl;
+
+	return runtimeModule;
 }
+
+void VM::dump_stack()
+{
+	for (const Value& val : stack)
+		std::cout << Utils::to_string(val) << std::endl;
+}
+
+void VM::push_call_frame(Function* fn, CallFrameContext frameCtx, Module* hostModule)
+{
+	//std::cout << "pushing fn call frame for: " << fn->name << " , argc = " << fn->argc << " , locals = " << fn->locals << 
+	//	"and host module addr is: " << hostModule << std::endl;
+
+	// normal functions
+	if (frameCtx == CallFrameContext::Fn)
+	{
+		callStack.emplace_back(fn, fn->chunk->code.data(), stack.size() - fn->argc, frameCtx, hostModule);
+		stack.resize(stack.size() + (fn->locals - fn->argc));
+	}
+
+	// methods
+	else
+	{
+		callStack.emplace_back(fn, fn->chunk->code.data(), stack.size() - fn->argc - 1, frameCtx, hostModule);
+		stack.resize(stack.size() + (fn->locals - fn->argc - 1));
+	}
+}
+
+//void VM::push_method_call_frame(Function* fn)
+//{
+//	// we subtract an extra slot count because methods have an implicit 'this' argument that slot[0] has to point to
+//	callStack.emplace_back(fn, fn->chunk->code.data(), stack.size() - fn->argc - 1);
+//	stack.resize(stack.size() + (fn->locals - fn->argc - 1));
+//}
 
 void VM::push_repeated_string(const Value& lhs, const Value& rhs)
 {
@@ -61,44 +131,49 @@ void VM::push_repeated_string(const Value& lhs, const Value& rhs)
 	stack.emplace_back(str);
 }
 
-bool VM::is_truthy(const Value& val)
+void VM::cleanup_args(uint16_t argc)
 {
-	switch (val.kind)
+	while (argc > 0)
 	{
-		case ValueKind::VALUE_INT:      return std::get<int64_t>(val.data) != 0;
-		case ValueKind::VALUE_FLOAT:    return std::get<double>(val.data) != 0.0;
-		case ValueKind::VALUE_BOOL:     return std::get<bool>(val.data);
-		case ValueKind::VALUE_STRING:   return std::get<std::string>(val.data) != "";
-		case ValueKind::VALUE_FN:       return std::get<Function*>(val.data) != nullptr;
-		case ValueKind::VALUE_INSTANCE: return true;
-		case ValueKind::VALUE_NULL:     return false;
+		stack.pop_back();
+		argc--;
 	}
 }
 
-bool VM::is_numeric(const Value& val)
+bool VM::dispatch_array_method(Value& object, const std::string& methodName, uint16_t argc)
 {
-	return val.kind == ValueKind::VALUE_INT || val.kind == ValueKind::VALUE_FLOAT || val.kind == ValueKind::VALUE_BOOL;
-}
+	auto& method = arrayMethods.find(methodName);
 
-double VM::to_double(const Value& val)
-{
-	if (val.kind == ValueKind::VALUE_INT) return static_cast<double>(std::get<int64_t>(val.data));
-	if (val.kind == ValueKind::VALUE_FLOAT) return std::get<double>(val.data);
-	if (val.kind == ValueKind::VALUE_BOOL) return std::get<bool>(val.data) ? 1.0 : 0.0;
-}
+	if (method == arrayMethods.end())
+	{
+		runtime_error("no method \"" + methodName + "\" exists for array");
+		return true;
+	}
 
-int64_t VM::to_int(const Value& val)
-{
-	if (val.kind == ValueKind::VALUE_INT) return std::get<int64_t>(val.data);
-	if (val.kind == ValueKind::VALUE_FLOAT) return static_cast<int64_t>(std::get<double>(val.data));
-	if (val.kind == ValueKind::VALUE_BOOL) return std::get<bool>(val.data) ? 1 : 0;
+	NativeFnError nativeFnCtx;
+	Value* argsPtr = argc > 0 ? &stack[stack.size() - argc] : nullptr;
+	ArgList argList(argsPtr, argc);
+	Value result = method->second(object, argList, nativeFnCtx);
+
+	if (nativeFnCtx.hasError)
+		runtime_error(nativeFnCtx.errorMessage);
+
+	// clean up the args, then pop 'object', and lastly push the result of the native method
+	cleanup_args(argc);
+	stack.pop_back();
+	stack.emplace_back(result);
+	return nativeFnCtx.hasError;
 }
 
 void VM::dispatch_loop()
 {
 	while (true)
-	{
+	{	
 		CallFrame& frame = callStack.back();
+
+		if (gc.should_collect())
+			gc.collect(stack, frame.hostModule->globals);
+
 		Opcode opcode = static_cast<Opcode>(*frame.ip++);
 
 		// at this point, ip is either pointing to the next instruction, or the current opcodes operands if the opcode has operands
@@ -108,10 +183,6 @@ void VM::dispatch_loop()
 			case Opcode::LOAD_CONST:
 			{
 				uint16_t constIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
-				uint8_t lo = *frame.ip;
-				uint8_t hi = *(frame.ip + 1);
-
-				std::cout << "LOAD CONST LO: " << (int)lo << " ,  HI: " << (int)hi << std::endl;
 				stack.emplace_back(frame.fn->chunk->constants[constIndex]);
 				frame.ip += 2;
 				break;
@@ -121,7 +192,7 @@ void VM::dispatch_loop()
 			case Opcode::LOAD_GLOBAL:
 			{
 				uint16_t slot = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
-				stack.emplace_back(module->globals[slot]);
+				stack.emplace_back(frame.hostModule->globals[slot]);
 				frame.ip += 2;
 				break;
 			}
@@ -131,7 +202,7 @@ void VM::dispatch_loop()
 			{
 				uint16_t slot = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
 				Value& val = stack.back();
-				module->globals[slot] = val;
+				frame.hostModule->globals[slot] = val;
 				stack.pop_back();
 				frame.ip += 2;
 				break;
@@ -151,10 +222,71 @@ void VM::dispatch_loop()
 			{
 				uint16_t slot = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
 
-				Value& val = stack.back();
+				Value val = stack.back();
 				stack.pop_back();
 				stack[frame.frameBase + slot] = val;
 
+				frame.ip += 2;
+				break;
+			}
+
+			// 2 byte operand <fieldIndex>, '$this' is at the top of the stack, push the value stored in the instances
+			// corresponding fieldIndex onto the stack
+			case Opcode::LOAD_FIELD:
+			{
+				uint16_t fieldIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				const std::string& fieldName = std::get<std::string>(frame.fn->chunk->constants[fieldIndex].data);
+
+				Value val = stack.back();
+				stack.pop_back();
+
+				// check to see if we're loading a value from an instance
+				if (val.kind == ValueKind::VALUE_INSTANCE)
+				{
+					Instance* instance = std::get<Instance*>(val.data);
+					auto it = instance->classDecl->fields.find(fieldName);
+					if (it == instance->classDecl->fields.end())
+					{
+						runtime_error("undefined field \"" + fieldName + "\"");
+						return;
+					}
+
+					stack.emplace_back(instance->fields[instance->classDecl->fields[fieldName]]);
+				}
+
+				// check to see if we're loading a value from a module
+				else if (val.kind == ValueKind::VALUE_MODULE)
+				{
+					Module* importedModule = std::get<Module*>(val.data);
+					uint16_t exportSlot = importedModule->exports[fieldName];
+					stack.emplace_back(importedModule->globals[exportSlot]);
+				}
+
+				frame.ip += 2;
+				break;
+			}
+
+			// 2 byte operand <fieldIndex>, '$this' is at the top of the stack, and the val being stored is TOS - 1
+			// store val in the corresponding fieldIndex on instance
+			case Opcode::STORE_FIELD:
+			{
+				uint16_t fieldIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				const std::string& fieldName = std::get<std::string>(frame.fn->chunk->constants[fieldIndex].data);
+				Value instanceVal = stack.back();
+				stack.pop_back();
+
+				Value val = stack.back();
+				stack.pop_back();
+
+				Instance* instance = std::get<Instance*>(instanceVal.data);
+				auto it = instance->classDecl->fields.find(fieldName);
+				if (it == instance->classDecl->fields.end())
+				{
+					runtime_error("undefined field \"" + fieldName + "\"");
+					return;
+				}
+
+				instance->fields[instance->classDecl->fields[fieldName]] = val;
 				frame.ip += 2;
 				break;
 			}
@@ -165,16 +297,144 @@ void VM::dispatch_loop()
 				// the fn object is at stack - argc - 1 because we push the fn object, then push the args in order
 				uint16_t argc = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
 				Value fn = stack[stack.size() - argc - 1];
-				Function* fnData = std::get<Function*>(fn.data);
 
-				if (argc != fnData->argc)
+				// handle normal function calls
+				if (fn.kind == ValueKind::VALUE_FN)
 				{
-					runtime_error("expected " + std::to_string(fnData->argc) + " arg(s), but got " + std::to_string(argc));
+					Function* fnData = std::get<Function*>(fn.data);
+
+					if (argc != fnData->argc)
+					{
+						runtime_error("expected " + std::to_string(fnData->argc) + " arg(s), but got " + std::to_string(argc));
+						return;
+					}
+
+					frame.ip += 2;
+					push_call_frame(fnData, CallFrameContext::Fn, frame.hostModule);
+				}
+
+				// handle native function calls
+				else if (fn.kind == ValueKind::VALUE_NATIVE_FN)
+				{
+					// set up the error ctx and arg list, then call the native function
+					NativeFnError nativeFnCtx;
+					Value* argsPtr = argc > 0 ? &stack[stack.size() - argc] : nullptr;
+					ArgList argList(argsPtr, argc);
+					Value result = std::get<NativeFn>(fn.data)(argList, nativeFnCtx);
+
+					// clean up the stack, no return opcode will be used, so we need to manually clean up the stack here
+					// there's also no locals in native functions, so we can directly use argc to see how many times we need to pop
+					while (argc > 0)
+					{
+						stack.pop_back();
+						argc--;
+					}
+
+					// pop the native function object since stack layout is fn_object, arg1, arg2, etc.
+					stack.pop_back();
+
+					// check if the native function had any errors, if so fire a runtime error with the provided message
+					if (nativeFnCtx.hasError)
+					{
+						runtime_error(nativeFnCtx.errorMessage);
+						return;
+					}
+
+					// lastly, place the return value of the native function onto the stack and point to the next instruction
+					stack.emplace_back(result);
+					frame.ip += 2;
+				}
+
+				// error object not callable
+				else
+				{
+					runtime_error("object is not callable");
 					return;
 				}
 
+				break;
+			}
+
+			// 2 operands <methodIndex> <argc>, methodIndex is an index into the chunks constants table
+			case Opcode::CALL_METHOD:
+			{
+				uint16_t methodIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
 				frame.ip += 2;
-				push_call_frame(fnData);
+
+				uint16_t argc = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				frame.ip += 2;
+
+				const std::string& methodName = std::get<std::string>(frame.fn->chunk->constants[methodIndex].data);
+
+				// need to get the object associated with this method
+				Value object = stack[stack.size() - argc - 1];
+
+				if (object.kind == ValueKind::VALUE_INSTANCE)
+				{
+					Instance* instance = std::get<Instance*>(object.data);
+
+					// then need to verify the instance has a method named 'methodName'
+					auto& method = instance->classDecl->methods.find(methodName);
+					if (method == instance->classDecl->methods.end())
+					{
+						runtime_error("no class method \"" + methodName + "\" exists for object");
+						return;
+					}
+
+					// then verify arg counts match
+					if (method->second->argc != argc)
+					{
+						runtime_error("class method \"" + methodName + "\" expects " + std::to_string(method->second->argc) + " args but got " + std::to_string(argc));
+						return;
+					}
+
+					// then push call frame
+					if (instance->classDecl->name == methodName)
+						push_call_frame(method->second, CallFrameContext::Constructor, instance->hostModule);
+					else
+						push_call_frame(method->second, CallFrameContext::Method, instance->hostModule);
+				}
+				else if (object.kind == ValueKind::VALUE_ARR)
+				{
+					// dispatch functions returns true if there was an error
+					if (dispatch_array_method(object, methodName, argc))
+						return;
+				}
+				
+				// handle any module function calls like math.sin()
+				else if (object.kind == ValueKind::VALUE_MODULE)
+				{
+					Module* runtimeModule = std::get<Module*>(object.data);
+					auto& moduleFn = runtimeModule->exports.find(methodName);
+
+					if (moduleFn == runtimeModule->exports.end())
+					{
+						runtime_error("no fn \"" + methodName + "\" found in module \"" + runtimeModule->name + "\"");
+						return;
+					}
+
+					Value exportedSymbol = runtimeModule->globals[moduleFn->second];
+					if (exportedSymbol.kind != ValueKind::VALUE_FN)
+					{
+						runtime_error("\"" + methodName + "\" not callable from module \"" + runtimeModule->name + "\"");
+						return;
+					}
+
+					Function* fn = std::get<Function*>(exportedSymbol.data);
+					if (argc != fn->argc)
+					{
+						runtime_error("module fn\"" + methodName + "\" expects " + std::to_string(fn->argc) + " args but got " + std::to_string(argc));
+						return;
+					}
+
+					push_call_frame(fn, CallFrameContext::Fn, runtimeModule);
+				}
+				else
+				{
+					runtime_error("cannot call method on non-object");
+					return;
+				}
+
 				break;
 			}
 
@@ -182,19 +442,37 @@ void VM::dispatch_loop()
 			case Opcode::RETURN:
 			{
 				// the return value is on the top of the stack, we need to save it temporarily while we clean up the stack
-				Value returnVal = stack.back();
-				stack.pop_back();
+				Value returnVal;
+
+				// constructors implicitly return 'this' which is stored at the frames base
+				if (frame.frameCtx == CallFrameContext::Constructor)
+				{
+					returnVal = stack[frame.frameBase];
+				}
+
+				// otherwise, pop the return value off of the stack
+				else
+				{
+					returnVal = stack.back();
+					stack.pop_back();
+				}
 
 				// pop all args and any locals until we get to the frames base
 				while (stack.size() > frame.frameBase)
 					stack.pop_back();
 
-				// recall, just before the args, the fn object was on the stack when we we're executing fn_call, so we pop the function here
-				stack.pop_back();
+				#ifdef _DEBUG
+					assert_stack_invariant(frame, frame.fn->name, "RETURN");
+				#endif
+
+				// for normal functions, the fn object is on the stack just before the args (1 spot below the frame base), so we pop it off
+				// after popping all the args
+				if (frame.frameCtx == CallFrameContext::Fn)
+					stack.pop_back();
 
 				// remove the functions call frame, and restore the return value
 				callStack.pop_back();
-				stack.emplace_back(returnVal);
+				stack.push_back(returnVal);
 				break;
 			}
 
@@ -213,7 +491,7 @@ void VM::dispatch_loop()
 				Value& cond = stack.back();
 
 				// if true, set ip to jmpTarget, if not, increment ip past the operand and continue execution
-				if (is_truthy(cond))
+				if (Utils::is_truthy(cond))
 					frame.ip = &frame.fn->chunk->code[jmpTarget];
 				else
 					frame.ip += 2;
@@ -228,7 +506,7 @@ void VM::dispatch_loop()
 				Value& cond = stack.back();
 
 				// same logic as JMP_IF_TRUE, we just negate the is_truthy result
-				if (!is_truthy(cond))
+				if (!Utils::is_truthy(cond))
 					frame.ip = &frame.fn->chunk->code[jmpTarget];
 				else
 					frame.ip += 2;
@@ -281,7 +559,7 @@ void VM::dispatch_loop()
 			{
 				Value& val = stack.back();
 				stack.pop_back();
-				stack.emplace_back(!is_truthy(val));
+				stack.emplace_back(!Utils::is_truthy(val));
 				break;
 			}
 
@@ -298,12 +576,12 @@ void VM::dispatch_loop()
 				{
 					stack.emplace_back(std::get<std::string>(lhs.data) + std::get<std::string>(rhs.data));
 				}
-				else if (is_numeric(lhs) && is_numeric(rhs))
+				else if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) + to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) + Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) + to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) + Utils::to_int(rhs));
 				}
 				else
 				{
@@ -322,12 +600,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) - to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) - Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) - to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) - Utils::to_int(rhs));
 				}
 				else
 				{
@@ -351,12 +629,12 @@ void VM::dispatch_loop()
 				{
 					push_repeated_string(lhs, rhs);
 				}
-				else if (is_numeric(lhs) && is_numeric(rhs))
+				else if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) * to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) * Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) * to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) * Utils::to_int(rhs));
 				}
 				else
 				{
@@ -375,7 +653,7 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					// check for division by zero
 					if (rhs.kind == ValueKind::VALUE_INT && std::get<int64_t>(rhs.data) == 0)
@@ -395,9 +673,9 @@ void VM::dispatch_loop()
 					}
 
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) / to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) / Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) / to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) / Utils::to_int(rhs));
 				}
 				else
 				{
@@ -416,12 +694,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(std::fmod(to_double(lhs), to_double(rhs)));
+						stack.emplace_back(std::fmod(Utils::to_double(lhs), Utils::to_double(rhs)));
 					else
-						stack.emplace_back(to_int(lhs) % to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) % Utils::to_int(rhs));
 				}
 				else
 				{
@@ -440,12 +718,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(std::pow(to_double(lhs), to_double(rhs)));
+						stack.emplace_back(std::pow(Utils::to_double(lhs), Utils::to_double(rhs)));
 					else
-						stack.emplace_back(static_cast<int64_t>(std::pow(to_int(lhs), to_int(rhs))));
+						stack.emplace_back(static_cast<int64_t>(std::pow(Utils::to_int(lhs), Utils::to_int(rhs))));
 				}
 				else
 				{
@@ -464,12 +742,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) < to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) < Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) < to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) < Utils::to_int(rhs));
 				}
 				else
 				{
@@ -488,12 +766,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) <= to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) <= Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) <= to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) <= Utils::to_int(rhs));
 				}
 				else
 				{
@@ -512,12 +790,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) > to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) > Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) > to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) > Utils::to_int(rhs));
 				}
 				else
 				{
@@ -536,12 +814,12 @@ void VM::dispatch_loop()
 				Value lhs = stack.back();
 				stack.pop_back();
 
-				if (is_numeric(lhs) && is_numeric(rhs))
+				if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(to_double(lhs) >= to_double(rhs));
+						stack.emplace_back(Utils::to_double(lhs) >= Utils::to_double(rhs));
 					else
-						stack.emplace_back(to_int(lhs) >= to_int(rhs));
+						stack.emplace_back(Utils::to_int(lhs) >= Utils::to_int(rhs));
 				}
 				else
 				{
@@ -679,6 +957,185 @@ void VM::dispatch_loop()
 				break;
 			}
 
+			case Opcode::MAKE_ARR:
+			{
+				uint16_t elementCount = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				
+				Array* arrObj = gc.alloc_object<Array>();
+				arrObj->arr.resize(elementCount);
+				
+				// elements are pushed left to right, so when popping, we need to assign them back to front to preserve the original order
+				for (int i = elementCount - 1; i >= 0; i--)
+				{
+					arrObj->arr[i] = stack.back();
+					stack.pop_back();
+				}
+
+				stack.emplace_back(arrObj);
+				frame.ip += 2;
+				break;
+			}
+
+			// no operands, arr and index are on the stack, need to push the arr[index] onto the stack
+			case Opcode::ARRAY_LOAD:
+			{
+				// arr object pushed first, then index
+				Value index = stack.back();
+				stack.pop_back();
+
+				Value arr = stack.back();
+				stack.pop_back();
+
+				// only allow integers to be used as an index
+				if (index.kind != ValueKind::VALUE_INT)
+				{
+					runtime_error("cannot index with non-integer type");
+					return;
+				}
+
+				if (arr.kind == ValueKind::VALUE_ARR)
+				{
+					Array* ptr = std::get<Array*>(arr.data);
+					int64_t indexVal = std::get<int64_t>(index.data);
+					if (indexVal >= ptr->arr.size())
+					{
+						runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
+						return;
+					}
+
+					stack.push_back(ptr->arr[indexVal]);
+
+				}
+				else
+				{
+					runtime_error("cannot index into non-indexable object, only arrays supported");
+					return;
+				}
+	
+				break;
+			}
+
+			// no operands, value to store, arr, and index, are on the stack in that order
+			case Opcode::ARRAY_STORE:
+			{
+				Value index = stack.back();
+				stack.pop_back();
+
+				Value arr = stack.back();
+				stack.pop_back();
+
+				Value val = stack.back();
+				stack.pop_back();
+
+				if (index.kind != ValueKind::VALUE_INT)
+				{
+					runtime_error("cannot index with non-integer type");
+					return;
+				}
+
+				if (arr.kind == ValueKind::VALUE_ARR)
+				{
+					Array* ptr = std::get<Array*>(arr.data);
+					int64_t indexVal = std::get<int64_t>(index.data);
+					if (indexVal >= ptr->arr.size())
+					{
+						runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
+						return;
+					}
+
+					ptr->arr[indexVal] = val;
+				}
+				else
+				{
+					runtime_error("cannot index into non-indexable object, only arrays supported");
+					return;
+				}
+
+				break;
+			}
+
+			// no operands, iter, end, and step pushed onto the stack in that order
+			case Opcode::FOR_ITER_RANGE:
+			{
+				Value step = stack.back();
+				stack.pop_back();
+
+				Value end = stack.back();
+				stack.pop_back();
+
+				Value iter = stack.back();
+				stack.pop_back();
+
+				// make sure iter, end, and step are all integers, if not issue a runtime error
+				if (iter.kind != ValueKind::VALUE_INT || end.kind != ValueKind::VALUE_INT || step.kind != ValueKind::VALUE_INT)
+				{
+					runtime_error("for loop range values must be integers");
+					return;
+				}
+
+				// the condition checked changes depending on if step is positive >= 0, or negative < 0
+				int64_t stepVal = std::get<int64_t>(step.data);
+				int64_t iterVal = std::get<int64_t>(iter.data);
+				int64_t endVal = std::get<int64_t>(end.data);
+
+				if (stepVal >= 0)
+					stack.emplace_back(Value(iterVal < endVal));
+				else
+					stack.emplace_back(Value(iterVal > endVal));
+
+				break;
+			}
+
+			// 2 byte operand <class_index>, store module.classes[class_index] in newly created instance and push instance on the stack
+			case Opcode::MAKE_INSTANCE:
+			{
+				Instance* instance = gc.alloc_object<Instance>();
+				uint16_t classIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				instance->classDecl = frame.hostModule->compileTimeClassDecls[classIndex];
+				instance->fields.resize(instance->classDecl->fields.size());
+				instance->hostModule = frame.hostModule;
+				stack.emplace_back(instance);
+				frame.ip += 2;
+				break;
+			}
+
+			// 2 byte operand <name_index> resolves to the name of the class as a string in the constants table
+			// top of stack should be module object, then use constants[nameIndex] to get the string of the field we're loading
+			case Opcode::MAKE_MODULE_INSTANCE:
+			{
+				uint16_t nameIndex = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+				frame.ip += 2;
+
+				// the module object is just before the args
+				Value obj = stack.back();
+				stack.pop_back();
+
+				if (obj.kind != ValueKind::VALUE_MODULE)
+				{
+					runtime_error("cannot make module instance from non-module object");
+					return;
+				}
+
+				Module* module = std::get<Module*>(obj.data);
+				const std::string& className = std::get<std::string>(frame.fn->chunk->constants[nameIndex].data);
+				auto it = module->classMap.find(className);
+
+				if (it == module->classMap.end())
+				{
+					runtime_error("module \"" + module->name + "\" has no class \"" + className + "\"");
+					return;
+				}
+
+				ClassDecl* decl = it->second;
+				Instance* instance = gc.alloc_object<Instance>();
+				instance->classDecl = decl;
+				instance->fields.resize(instance->classDecl->fields.size());
+				instance->hostModule = module;
+				stack.push_back(instance);
+
+				break;
+			}
+
 			case Opcode::EXIT:
 				return;
 		}
@@ -687,7 +1144,7 @@ void VM::dispatch_loop()
 
 void VM::runtime_error(const std::string& errorMsg)
 {
-	std::cout << "Runtime Error: " << errorMsg << std::endl;
+	std::cout << "[Runtime Error] " << errorMsg << std::endl;
 }
 
 void VM::cleanup_global_call_frame()
@@ -696,5 +1153,18 @@ void VM::cleanup_global_call_frame()
 		stack.pop_back();
 
 	callStack.pop_back();
-
 }
+
+// debug function definitions
+#ifdef _DEBUG
+
+void VM::assert_stack_invariant(const CallFrame& frame, const std::string& fnIdentifier, const std::string& ctx)
+{
+	if (stack.size() != frame.frameBase) {
+		std::cout << "<ASSERT_ERROR> stack mismatch for fn (" << fnIdentifier << ") in ctx <"
+			<< ctx << ">: expected " << frame.frameBase
+			<< " got " << stack.size() << std::endl;
+	}
+}
+
+#endif

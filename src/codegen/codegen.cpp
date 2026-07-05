@@ -1,6 +1,8 @@
 #include "codegen/codegen.h"
+#include "runtime/built_ins.h"
 
 #include <iostream>
+#include <filesystem>
 
 Codegen::Codegen()
 {
@@ -9,19 +11,22 @@ Codegen::Codegen()
 	this->ctx = nullptr;
 	this->currentClass = nullptr;
 	this->classDepth = 0;
+	this->inUserFn = false;
+	this->inConstructor = false;
 }
 
-Module* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx)
+CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath)
 {
 	this->ctx = ctx;
 
-	module = ctx->arena.alloc<Module>();
-
-	module->name = "temp_module_name";
-	module->filepath = "temp_module_filepath";
-	module->root = make_fn("__main__", 0, 0);
+	module = ctx->compilerArena.alloc<CompiledModule>();
+	module->filepath = filepath;
+	module->root = make_fn(filepath + "_root", 0, 0);
 
 	currentFn = module->root;
+
+	register_built_ins();
+	collect_global_symbols(ast, filepath);
 
 	for (ASTNode* node : ast)
 		compile_node(node);
@@ -30,6 +35,55 @@ Module* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx)
 	module->globals.resize(env.current_scope_slot_count());
 	emit_opcode(Opcode::EXIT);
 	return module;
+}
+
+void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std::string& filepath)
+{
+	for (ASTNode* node : ast)
+	{
+		if (node->kind == ASTKind::AST_IMPORT_STMT)
+		{
+			const ASTImportStmt& data = std::get<ASTImportStmt>(node->data);
+			std::string moduleName = data.alias == "" ? std::filesystem::path(data.importName).stem().string() : data.alias;
+			EnvEntry entry = env.resolve_entry(moduleName);
+			if (entry.slot != -1 && entry.scope == env.get_scope_depth())
+			{
+				ctx->reporter.submit_diagnostic({ Phase::Codegen, "duplicate identifier '" + moduleName + "'", node->line, node->column });
+				continue;
+			}
+
+			// add the module as null but save the moduleName -> slot mapping, it will be resolved to a Module runtime object in the VM
+			int slot = alloc_slot(moduleName);
+			add_global_at_slot(moduleName, Value(), slot);
+			this->module->moduleMap[moduleName] = slot;
+		}
+		else if (node->kind == ASTKind::AST_FN_DECL)
+		{
+			const ASTFnDecl& data = std::get<ASTFnDecl>(node->data);
+			EnvEntry entry = env.resolve_entry(data.identifier);
+			if (entry.slot != -1 && entry.scope == env.get_scope_depth())
+			{
+				ctx->reporter.submit_diagnostic({ Phase::Codegen, "duplicate identifier '" + data.identifier + "'", node->line, node->column });
+				continue;
+			}
+
+			// for functions we just allocate the slot but dont do anything with it yet, in the main compile function function declarations will
+			// correctly get the entry for registered functions and add them as a global slot in the modules globals table
+			alloc_slot(data.identifier);
+		}
+	}
+}
+
+void Codegen::register_built_ins()
+{
+	register_built_in_fn("print", Value(Builtins::print));
+	register_built_in_fn("len", Value(Builtins::len));
+}
+
+void Codegen::register_built_in_fn(const std::string& name, const Value& nativeFn)
+{
+	uint16_t slot = env.add_entry(name);
+	add_global_at_slot(name, nativeFn, slot);
 }
 
 void Codegen::emit_opcode(Opcode opcode)
@@ -205,12 +259,27 @@ void Codegen::emit_iterable_condition_check(IterContext& iterCtx)
 	if (std::holds_alternative<RangeIterContext>(iterCtx))
 	{
 		// load i, load end, cmp lt --> i < end (exclusive)
+		// we cant know at compile time what comparison to emit, so we need to load the iterator, end, and step
+		// and determine at runtime to run a > or < comparison
 		RangeIterContext& range = std::get<RangeIterContext>(iterCtx);
 		emit_opcode(Opcode::LOAD_LOCAL);
 		emit_operand(range.iterSlot);
 		emit_opcode(Opcode::LOAD_LOCAL);
 		emit_operand(range.endSlot);
-		emit_opcode(Opcode::LT);
+
+		if (range.stepSlot != -1)
+		{
+			emit_opcode(Opcode::LOAD_LOCAL);
+			emit_operand(range.stepSlot);
+		}
+		else
+		{
+			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_INT, ValueData(std::in_place_type<int64_t>, 1)));
+			emit_opcode(Opcode::LOAD_CONST);
+			emit_operand(constIndex);
+		}
+
+		emit_opcode(Opcode::FOR_ITER_RANGE);
 		emit_opcode(Opcode::JMP_IF_FALSE);
 		range.endJmpPatch = emit_operand(0xFFFF);
 		emit_opcode(Opcode::POP);
@@ -280,12 +349,8 @@ void Codegen::emit_function(ASTNode* node)
 {
 	const ASTFnDecl& data = std::get<ASTFnDecl>(node->data);
 
+	// global functions are registered in a pre-pass so the entry is guaranteed to exist here
 	EnvEntry entry = env.resolve_entry(data.identifier);
-	if (entry.slot != -1 && entry.scope == env.get_scope_depth())
-		ctx->reporter.submit_diagnostic({ Phase::Codegen, "duplicate identifier '" + data.identifier + "'", node->line, node->column });
-
-	// add the function into the environment in the parent scope
-	int fnSlot = alloc_slot(data.identifier);
 
 	// we dont know the amount of locals in the function yet, we need to compile the body of the function first, then get
 	// the slot index of the functions scope
@@ -297,15 +362,7 @@ void Codegen::emit_function(ASTNode* node)
 		alloc_slot(param);
 
 	compile_node(data.body);
-
-	Opcode lastOpcode = static_cast<Opcode>(currentFn->chunk->code.back());
-	if (lastOpcode != Opcode::RETURN)
-	{
-		int nullSlot = add_constant_to_chunk(Value(NullValue{}));
-		emit_opcode(Opcode::LOAD_CONST);
-		emit_operand(nullSlot);
-		emit_opcode(Opcode::RETURN);
-	}
+	emit_implicit_null_return();
 
 	env.end_scope();
 	Value fnData = Value(ValueKind::VALUE_FN, ValueData(std::in_place_type<Function*>, currentFn));
@@ -313,7 +370,105 @@ void Codegen::emit_function(ASTNode* node)
 
 	// check for global scope so we can add this function to the modules globals
 	if (env.get_scope_depth() == 0 && classDepth == 0)
-		add_global_at_slot(fnData, static_cast<uint16_t>(fnSlot));
+		add_global_at_slot(data.identifier, fnData, static_cast<uint16_t>(entry.slot));
+}
+
+void Codegen::emit_local_class_instantiation(ASTNode* node)
+{
+	const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
+	const std::string& className = data.path.back();
+	int declIndex = -1;
+
+	for (int i = 0; i < module->classes.size(); i++)
+	{
+		if (module->classes[i]->name == className)
+		{
+			declIndex = i;
+			break;
+		}
+	}
+
+	if (declIndex == -1)
+	{
+		ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "undefined class with identifier \"" + className + "\"", node->line, node->column }));
+		return;
+	}
+	else
+	{
+		emit_opcode(Opcode::MAKE_INSTANCE);
+		emit_operand(static_cast<uint16_t>(declIndex));
+	}
+
+	for (ASTNode* arg : data.args)
+		compile_node(arg);
+
+	// if 0 args are passed, then there either must be no provided constructor, or a constructor with 0 args
+	// if > 0 args are passed, then there has to be a constructor with that many args
+	auto& constructor = module->classes[declIndex]->methods.find(className);
+
+	// constructor provided, args must match count or error
+	if (constructor != module->classes[declIndex]->methods.end())
+	{
+		if (constructor->second->argc != data.args.size())
+		{
+			ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "no constructor with " + std::to_string(data.args.size()) + " arguments exists for class \"" + className + "\"", node->line, node->column }));
+			return;
+		}
+
+		uint16_t nameIndex = add_constant_to_chunk(Value(className));
+		emit_opcode(Opcode::CALL_METHOD);
+		emit_operand(nameIndex);
+		emit_operand(data.args.size());
+	}
+
+	// constructor not provided, arg count must be 0 or error
+	else
+	{
+		if (data.args.size() > 0)
+		{
+			ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "no constructor exists for class \"" + className + "\"", node->line, node->column }));
+			return;
+		}
+	}
+}
+
+void Codegen::emit_module_class_instantiation(ASTNode* node)
+{
+	const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
+	EnvEntry entry = env.resolve_entry(data.path[0]);
+	std::cout << "emit_module_class_instantiation called, but not implemented..., data.path[0] = " << data.path[0] << "\n";
+	std::cout << "emit_module_class_instantiation called, but not implemented..., data.path[1] = " << data.path[1] << "\n";
+
+	if (entry.scope == -1 && entry.slot == -1)
+	{
+		ctx->reporter.submit_diagnostic(Diagnostic{ Phase::Codegen, "undefined identifier \"" + data.path[0] + "\"", node->line, node->column});
+		return;
+	}
+
+	// load the root module
+	emit_opcode(Opcode::LOAD_GLOBAL);
+	emit_operand(static_cast<uint16_t>(entry.slot));
+
+	// emit load_field opcodes for each segment that is NOT the class name
+	for (int i = 1; i < data.path.size() - 1; i++)
+	{
+		uint16_t constIndex = add_constant_to_chunk(Value(data.path[i]));
+		emit_opcode(Opcode::LOAD_FIELD);
+		emit_operand(constIndex);
+	}
+
+	const std::string& className = data.path.back();
+
+	uint16_t constIndex = add_constant_to_chunk(Value(className));
+	emit_opcode(Opcode::MAKE_MODULE_INSTANCE);
+	emit_operand(constIndex);
+
+	for (ASTNode* arg : data.args)
+		compile_node(arg);
+
+	emit_opcode(Opcode::CALL_METHOD);
+	emit_operand(constIndex);
+	emit_operand(static_cast<uint16_t>(data.args.size()));
 }
 
 void Codegen::emit_method(ASTNode* node)
@@ -322,9 +477,10 @@ void Codegen::emit_method(ASTNode* node)
 	// 1. we dont need to emit an entry / register the function with the environment
 	// 2. before we add entries for the params, we need to reserve the first slot for 'this'
 	// 3. instead of storing the function in the global scope, we add it to the classDecl's methods table
-
 	const ASTFnDecl& data = std::get<ASTFnDecl>(node->data);
 	currentFn = make_fn(data.identifier, data.params.size(), 0);
+	inConstructor = data.identifier == currentClass->name;
+
 	env.new_scope(ScopeKind::FnLevel);
 
 	alloc_slot("$this");
@@ -332,8 +488,10 @@ void Codegen::emit_method(ASTNode* node)
 		alloc_slot(param);
 
 	compile_node(data.body);
-	currentFn->locals = env.current_scope_slot_count() - data.params.size() - 1; // extra -1 to account for hidden 'this' parameter
+	emit_implicit_null_return();
+
 	env.end_scope();
+	inConstructor = false;
 
 	currentClass->methods[data.identifier] = currentFn;
 	currentFn = module->root;
@@ -356,7 +514,7 @@ void Codegen::emit_var_decl(ASTNode* node)
 	// this allows variable shadowing by allowing deeper scopes to declare variables with the same identifiers as outer scopes
 	EnvEntry entry = env.resolve_entry(data.identifier);
 	if (entry.slot != -1 && entry.scope == env.get_scope_depth())
-		ctx->reporter.submit_diagnostic({ Phase::Codegen, "duplicate variable declaration '" + data.identifier + "'", node->line, node->column });
+		ctx->reporter.submit_diagnostic({ Phase::Codegen, "duplicate identifier '" + data.identifier + "'", node->line, node->column });
 
 	// compile the initializer first which will push the initialization value onto the stack
 	compile_node(data.initializer);
@@ -369,11 +527,28 @@ void Codegen::emit_var_decl(ASTNode* node)
 	{
 		emit_opcode(Opcode::STORE_GLOBAL);
 		emit_operand(static_cast<uint16_t>(slot));
+		add_global_at_slot(data.identifier, Value(), slot);
 	}
 	else
 	{
 		emit_opcode(Opcode::STORE_LOCAL);
 		emit_operand(static_cast<uint16_t>(slot));
+	}
+}
+
+void Codegen::emit_implicit_null_return()
+{
+	Opcode lastOpcode = currentFn->chunk->code.size() > 0 ? static_cast<Opcode>(currentFn->chunk->code.back()) : Opcode::EXIT;
+	if (lastOpcode != Opcode::RETURN)
+	{
+		if (!inConstructor)
+		{
+			uint16_t constIndex = add_constant_to_chunk(Value());
+			emit_opcode(Opcode::LOAD_CONST);
+			emit_operand(constIndex);
+		}
+
+		emit_opcode(Opcode::RETURN);
 	}
 }
 
@@ -408,22 +583,23 @@ void Codegen::patch_jump(uint16_t address)
 
 Function* Codegen::make_fn(const std::string& name, uint16_t argc, uint16_t localsCount)
 {
-	Function* fn = ctx->arena.alloc<Function>();
+	Function* fn = ctx->compilerArena.alloc<Function>();
 	fn->name = name;
 	fn->argc = argc;
 	fn->locals = localsCount;
-	fn->chunk = ctx->arena.alloc<Chunk>();
+	fn->chunk = ctx->compilerArena.alloc<Chunk>();
 
 	return fn;
 }
 
-void Codegen::add_global_at_slot(const Value& value, uint16_t slot)
+void Codegen::add_global_at_slot(const std::string& identifier, const Value& value, uint16_t slot)
 {
 	// resize and insert directly at slot to preserve slot indices of global variables and functions
 	if (module->globals.size() <= slot)
 		module->globals.resize(slot + 1);
 
 	module->globals[slot] = value;
+	module->exports[identifier] = slot;
 }
 
 uint16_t Codegen::add_constant_to_chunk(const Value& value)
@@ -463,11 +639,14 @@ int Codegen::alloc_slot(const std::string& identifier)
 	int slot = env.add_entry(identifier);
 
 	// if we're in a function, we need to track the max local depth to know how much stack space we need for the whole function
-	if (currentFn)
+	// NOTE: This doesnt apply to the root level 'function', so if we have a scope level of 0, we're at root level and shouldnt track
+	//       locals like this since variable and function declarations are globals and behave differently
+	if (currentFn && env.get_scope_depth() > 0)
 	{
 		uint16_t totalSlots = env.current_scope_slot_count();
 		std::cout << "alloc slot for: " << identifier << " slot [" << slot << "]" << "  -->  totalSlots: " << totalSlots << ", currentFn->locals" << currentFn->locals << std::endl;
 		currentFn->locals = std::max(currentFn->locals, static_cast<uint16_t>(slot + 1));
+		std::cout << "current fn = " << currentFn->name << " and locals is now: " << currentFn->locals << std::endl;
 	}
 
 	return slot;
@@ -511,7 +690,7 @@ void Codegen::compile_node(ASTNode* node)
 
 		case ASTKind::AST_NULL:
 		{
-			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_NULL, ValueData(std::in_place_type<NullValue>)));
+			uint16_t constIndex = add_constant_to_chunk(Value());
 			emit_opcode(Opcode::LOAD_CONST);
 			emit_operand(constIndex);
 			break;
@@ -520,7 +699,7 @@ void Codegen::compile_node(ASTNode* node)
 		case ASTKind::AST_VAR_DECL:
 		{
 			// if we're in a class declaration, but not a method, then we need to populate the classDecl's field map
-			if (currentClass && !currentFn)
+			if (currentClass && !inUserFn)
 				emit_field_decl(node);
 
 			// otherwise, a variable declaration in a method or normal function is the same
@@ -532,11 +711,13 @@ void Codegen::compile_node(ASTNode* node)
 
 		case ASTKind::AST_FN_DECL:
 		{
+			inUserFn = true;
 			if (currentClass)
 				emit_method(node);
 			else
 				emit_function(node);
 
+			inUserFn = false;
 			break;
 		}
 
@@ -550,6 +731,18 @@ void Codegen::compile_node(ASTNode* node)
 			for (ASTNode* stmt : data.statements)
 				compile_node(stmt);
 
+			break;
+		}
+
+		case ASTKind::AST_ARRAY:
+		{
+			const ASTArray& data = std::get<ASTArray>(node->data);
+
+			for (ASTNode* element : data.arr)
+				compile_node(element);
+
+			emit_opcode(Opcode::MAKE_ARR);
+			emit_operand(static_cast<uint16_t>(data.arr.size()));
 			break;
 		}
 
@@ -597,14 +790,9 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTReturn& data = std::get<ASTReturn>(node->data);
 
 			if (data.returnExpr)
-			{
 				compile_node(data.returnExpr);
-				emit_opcode(Opcode::RETURN);
-			}
-			else
-			{
-				emit_opcode(Opcode::NULL_RETURN);
-			}
+
+			emit_opcode(Opcode::RETURN);
 
 			break;
 		}
@@ -702,7 +890,7 @@ void Codegen::compile_node(ASTNode* node)
 				break;
 			}
 
-			currentClass = ctx->arena.alloc<ClassDecl>(data.identifier);
+			currentClass = ctx->compilerArena.alloc<ClassDecl>(data.identifier);
 			module->classes.push_back(currentClass);
 
 			for (ASTNode* member : data.members)
@@ -764,13 +952,34 @@ void Codegen::compile_node(ASTNode* node)
 		{
 			const ASTFnCall& data = std::get<ASTFnCall>(node->data);
 
-			compile_node(data.callee);
+			// method call
+			if (data.callee->kind == ASTKind::AST_FIELD_ACCESS)
+			{
+				const ASTFieldAccess& fieldAccess = std::get<ASTFieldAccess>(data.callee->data);
+				compile_node(fieldAccess.object);
 
-			for (ASTNode* arg : data.arguments)
-				compile_node(arg);
+				for (ASTNode* arg : data.arguments)
+					compile_node(arg);
 
-			emit_opcode(Opcode::CALL_FN);
-			emit_operand(data.arguments.size());
+				uint16_t nameIndex = add_constant_to_chunk(Value(fieldAccess.field));
+				emit_opcode(Opcode::CALL_METHOD);
+				emit_operand(nameIndex);
+				std::cout << "method call argc: " << data.arguments.size() << std::endl; 
+				emit_operand(static_cast<uint16_t>(data.arguments.size()));
+			}
+
+			// normal fn call
+			else
+			{
+				compile_node(data.callee);
+
+				for (ASTNode* arg : data.arguments)
+					compile_node(arg);
+
+				emit_opcode(Opcode::CALL_FN);
+				emit_operand(data.arguments.size());
+
+			}
 
 			break;
 		}
@@ -823,6 +1032,19 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTExprStmt& data = std::get<ASTExprStmt>(node->data);
 			compile_node(data.expr);
 			emit_opcode(Opcode::POP);
+			break;
+		}
+
+		case ASTKind::AST_INSTANTIATION:
+		{
+			const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
+
+			if (data.path.size() == 1)
+				emit_local_class_instantiation(node);
+			else
+				emit_module_class_instantiation(node);
+
+
 			break;
 		}
 	}

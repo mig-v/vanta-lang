@@ -1,6 +1,7 @@
 #include <unordered_set>
 
 #include "semantics/semantic_analyzer.h"
+#include "utils/debug_utils.h"
 
 SemanticAnalyzer::SemanticAnalyzer()
 {
@@ -22,7 +23,7 @@ void SemanticAnalyzer::check_duplicate_class_member(const std::string& identifie
 {
 	// if we are in a class declaration, check if a member with this identifier already exists, if it does, we have a duplicate name error
 	// if not, add it into the classMembers set
-	if (classDeclDepth > 0)
+	if (classDeclDepth > 0 && fnDeclDepth == 0)
 	{
 		if (classMembers.count(identifier))
 			ctx->reporter.submit_diagnostic({ Phase::Semantic, "duplicate class member '" + identifier + "'", node->line, node->column });
@@ -35,10 +36,50 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 {
 	switch (node->kind)
 	{
+		// nothing to check
+		case ASTKind::AST_INT_LITERAL:
+		case ASTKind::AST_FLOAT_LITERAL:
+		case ASTKind::AST_STRING_LITERAL:
+		case ASTKind::AST_BOOL_LITERAL:
+		case ASTKind::AST_NULL:
+		case ASTKind::AST_IDENTIFIER:
+		case ASTKind::AST_IMPORT_STMT:
+			break; 
+
+		case ASTKind::AST_EXPR_STMT:
+		{
+			const ASTExprStmt& data = std::get<ASTExprStmt>(node->data);
+			analyze_node(data.expr);
+			break;
+		}
+
+		case ASTKind::AST_FN_CALL:
+		{
+			const ASTFnCall& data = std::get<ASTFnCall>(node->data);
+			
+			analyze_node(data.callee);
+
+			for (ASTNode* arg : data.arguments)
+				analyze_node(arg);
+
+			break;
+		}
+
+		case ASTKind::AST_ARRAY:
+		{
+			const ASTArray& data = std::get<ASTArray>(node->data);
+			
+			for (ASTNode* element : data.arr)
+				analyze_node(element);
+
+			break;
+		}
 		case ASTKind::AST_VAR_DECL:
 		{
 			const ASTVarDecl& data = std::get<ASTVarDecl>(node->data);
+
 			check_duplicate_class_member(data.identifier, node);
+
 			break;
 		}
 		case ASTKind::AST_FN_DECL:
@@ -57,9 +98,13 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 				fnParams.insert(param);
 			}
 
+			inConstructor = (classDeclDepth > 0 && data.identifier == currentClassName);
 			fnDeclDepth++;
+
 			analyze_node(data.body);
+
 			fnDeclDepth--;
+			inConstructor = false;
 			break;
 		}
 
@@ -68,6 +113,9 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 			const ASTReturn& data = std::get<ASTReturn>(node->data);
 			if (fnDeclDepth == 0)
 				ctx->reporter.submit_diagnostic({ Phase::Semantic, "cannot return outside of function", node->line, node->column });
+
+			if (inConstructor && data.returnExpr)
+				ctx->reporter.submit_diagnostic({ Phase::Semantic, "cannot return a non-null value from constructor", node->line, node->column });
 
 			break;
 		}
@@ -136,11 +184,13 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 
 			classMembers.clear();
 			classDeclDepth++;
+			currentClassName = data.identifier;
 
 			for (ASTNode* member : data.members)
 				analyze_node(member);
 
 			classDeclDepth--;
+			currentClassName.clear();
 			break;
 		}
 
@@ -214,6 +264,18 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 			break;
 		}
 
-		default: break;
+		case ASTKind::AST_INSTANTIATION:
+		{
+			const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
+
+			for (ASTNode* arg : data.args)
+				analyze_node(arg);
+
+			break;
+		}
+
+		default:
+			ctx->reporter.submit_diagnostic({ Phase::Semantic, "unhandled AST node, enum val: " + std::to_string((int)node->kind) + " kind: " + std::string(Utils::ast_kind_to_string(node->kind)), node->line, node->column});
+			break;
 	}
 }

@@ -13,6 +13,8 @@ add_executable(vanta-lang
                src/core/pipeline_context.h
                src/core/interpreter.h
                src/core/interpreter.cpp
+               src/core/compilation_unit.h
+               src/core/compilation_unit.cpp
 
                src/lexer/lexer.h
                src/lexer/lexer.cpp
@@ -25,6 +27,8 @@ add_executable(vanta-lang
 
                src/semantics/semantic_analyzer.h
                src/semantics/semantic_analyzer.cpp
+               src/semantics/import_resolver.h
+               src/semantics/import_resolver.cpp
 
                src/codegen/codegen.h
                src/codegen/codegen.cpp
@@ -38,9 +42,15 @@ add_executable(vanta-lang
                src/runtime/runtime.cpp
                src/runtime/vm.h
                src/runtime/vm.cpp
+               src/runtime/built_ins.h
+               src/runtime/built_ins.cpp
+               src/runtime/gc.h
+               src/runtime/gc.cpp
 
                src/utils/debug_utils.h
                src/utils/debug_utils.cpp
+               src/utils/value_utils.h
+               src/utils/value_utils.cpp
 
                src/test_suite/test_suite.h
                src/test_suite/test_suite.cpp

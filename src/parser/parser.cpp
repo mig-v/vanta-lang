@@ -13,35 +13,67 @@ void Parser::parse_tokens(std::vector<Token>* tokens, PipelineContext* ctx)
 
 	while (tokens_left() && peek() != TokenKind::TOKEN_EOF)
 	{
-		ASTNode* node = statement();
+		ASTNode* node = program();
 
 		if (node)
 			ast.emplace_back(node);
 	}
 }
 
-ASTNode* Parser::statement()
+ASTNode* Parser::program()
 {
 	try
 	{
-		if (peek() == TokenKind::TOKEN_VAR) return var_decl();
-		if (peek() == TokenKind::TOKEN_CLASS) return class_decl();
-		if (peek() == TokenKind::TOKEN_IF) return if_stmt();
-		if (peek() == TokenKind::TOKEN_FOR) return for_stmt();
-		if (peek() == TokenKind::TOKEN_WHILE) return while_stmt();
-		if (peek() == TokenKind::TOKEN_FN)  return fn_decl();
-		if (peek() == TokenKind::TOKEN_RETURN) return return_stmt();
-		if (peek() == TokenKind::TOKEN_BREAK) return break_stmt();
-		if (peek() == TokenKind::TOKEN_CONTINUE) return continue_stmt();
-
-		// fall back to expr_stmt
-		return expr_stmt();
+		ASTNode* node = (peek() == TokenKind::TOKEN_IMPORT) ? import_stmt() : statement();
+		return node;
 	}
 	catch (const ParseError& error)
 	{
 		synchronize();
 		return nullptr;
 	}
+}
+
+ASTNode* Parser::import_stmt()
+{
+	// consume 'import' keyword
+	Token* start = advance();
+	Token* identifier = assert_current(TokenKind::TOKEN_STRING_LITERAL, "expect string literal in import statement");
+	Token* alias = nullptr;
+
+	// parse 'as' <identifier> syntax to use an alias for the import statement
+	if (peek() == TokenKind::TOKEN_AS)
+	{
+		advance();
+		alias = assert_current(TokenKind::TOKEN_STRING_LITERAL, "expect import alias as string literal");
+	}
+
+	assert_current(TokenKind::TOKEN_SEMICOLON, "expect ';' after import statement");
+
+	std::string importName = identifier->tokenLiteral;
+	std::string aliasName = alias ? alias->tokenLiteral : "";
+
+	return ctx->astArena.alloc<ASTNode>(
+		ASTKind::AST_IMPORT_STMT,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTImportStmt>, importName, aliasName));
+}
+
+ASTNode* Parser::statement()
+{
+	if (peek() == TokenKind::TOKEN_VAR) return var_decl();
+	if (peek() == TokenKind::TOKEN_CLASS) return class_decl();
+	if (peek() == TokenKind::TOKEN_IF) return if_stmt();
+	if (peek() == TokenKind::TOKEN_FOR) return for_stmt();
+	if (peek() == TokenKind::TOKEN_WHILE) return while_stmt();
+	if (peek() == TokenKind::TOKEN_FN)  return fn_decl();
+	if (peek() == TokenKind::TOKEN_RETURN) return return_stmt();
+	if (peek() == TokenKind::TOKEN_BREAK) return break_stmt();
+	if (peek() == TokenKind::TOKEN_CONTINUE) return continue_stmt();
+
+	// fall back to expr_stmt
+	return expr_stmt();
 }
 
 ASTNode* Parser::var_decl()
@@ -62,7 +94,7 @@ ASTNode* Parser::var_decl()
 	ASTNode* initializer = expression();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after variable declaration");
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_VAR_DECL,
 		start->line,
 		start->column,
@@ -105,7 +137,7 @@ ASTNode* Parser::fn_decl()
 	ASTNode* body = block();
 	inFnDecl = false;
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_FN_DECL,
 		start->line,
 		start->column,
@@ -142,7 +174,7 @@ ASTNode* Parser::class_decl()
 	assert_current(TokenKind::TOKEN_R_BRACE, "Expect '}' after class methods and fields");
 	inClassDecl = false;
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_CLASS_DECL,
 		start->line,
 		start->column,
@@ -158,7 +190,7 @@ ASTNode* Parser::field_decl()
 	Token* identifier = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect identifier in variable declaration");
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after field name");
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_VAR_DECL,
 		start->line,
 		start->column,
@@ -181,7 +213,7 @@ ASTNode* Parser::if_stmt()
 		falseBranch = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 	}
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_IF,
 		start->column,
 		start->line,
@@ -195,7 +227,7 @@ ASTNode* Parser::while_stmt()
 	ASTNode* condition = expression();
 	ASTNode* body = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_WHILE,
 		start->line,
 		start->column,
@@ -213,7 +245,7 @@ ASTNode* Parser::for_stmt()
 	ASTNode* iterable = for_iterable();
 	ASTNode* body = (peek() == TokenKind::TOKEN_L_BRACE) ? block() : statement();
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_FOR,
 		start->line,
 		start->column,
@@ -243,7 +275,7 @@ ASTNode* Parser::for_iterable()
 			step = expression();
 		}
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_RANGE,
 			rangeStart->line,
 			rangeStart->column,
@@ -266,7 +298,7 @@ ASTNode* Parser::return_stmt()
 
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after return");
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_RETURN,
 		start->line,
 		start->column,
@@ -277,7 +309,7 @@ ASTNode* Parser::break_stmt()
 {
 	Token* start = advance();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after break");
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_BREAK,
 		start->line,
 		start->column,
@@ -288,7 +320,7 @@ ASTNode* Parser::continue_stmt()
 {
 	Token* start = advance();
 	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after continue");
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_CONTINUE,
 		start->line,
 		start->column,
@@ -304,7 +336,7 @@ ASTNode* Parser::expr_stmt()
 	if (expr->kind == ASTKind::AST_ASSIGNMENT)
 		return expr;
 
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_EXPR_STMT,
 		expr->line,
 		expr->column,
@@ -325,11 +357,11 @@ ASTNode* Parser::block()
 	}
 
 	assert_current(TokenKind::TOKEN_R_BRACE, "Expect '}' to close block");
-	return ctx->arena.alloc<ASTNode>(
+	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_BLOCK,
 		start->line,
 		start->column,
-		std::move(statements));
+		ASTData(std::in_place_type<ASTBlock>, std::move(statements)));
 }
 
 ASTNode* Parser::expression()
@@ -351,7 +383,7 @@ ASTNode* Parser::assignment()
 		Token* op = advance();
 		ASTNode* rhs = assignment();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_ASSIGNMENT,
 			lhs->line,
 			lhs->column,
@@ -369,7 +401,7 @@ ASTNode* Parser::logical_or()
 	{
 		Token* op = advance();
 		ASTNode* rhs = logical_and();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_LOGICAL_EXPR,
 			lhs->line,
 			lhs->column,
@@ -387,7 +419,7 @@ ASTNode* Parser::logical_and()
 	{
 		Token* op = advance();
 		ASTNode* rhs = equality();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_LOGICAL_EXPR,
 			lhs->line,
 			lhs->column,
@@ -405,7 +437,7 @@ ASTNode* Parser::equality()
 	{
 		Token* op = advance();
 		ASTNode* rhs = comparison();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -423,7 +455,7 @@ ASTNode* Parser::comparison()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_or();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -441,7 +473,7 @@ ASTNode* Parser::bitwise_or()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_xor();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -459,7 +491,7 @@ ASTNode* Parser::bitwise_xor()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_and();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -477,7 +509,7 @@ ASTNode* Parser::bitwise_and()
 	{
 		Token* op = advance();
 		ASTNode* rhs = bitwise_shift();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -495,7 +527,7 @@ ASTNode* Parser::bitwise_shift()
 	{
 		Token* op = advance();
 		ASTNode* rhs = term();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -513,7 +545,7 @@ ASTNode* Parser::term()
 	{
 		Token* op = advance();
 		ASTNode* rhs = factor();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -531,7 +563,7 @@ ASTNode* Parser::factor()
 	{
 		Token* op = advance();
 		ASTNode* rhs = power();
-		lhs = ctx->arena.alloc<ASTNode>(
+		lhs = ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			lhs->line,
 			lhs->column,
@@ -549,7 +581,7 @@ ASTNode* Parser::power()
 	{
 		Token* op = advance();
 		ASTNode* exponent = power();
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BINARY_EXPR,
 			base->line,
 			base->column,
@@ -565,7 +597,7 @@ ASTNode* Parser::unary()
 	{
 		Token* op = advance();
 		ASTNode* expr = unary();
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_UNARY_EXPR,
 			op->line,
 			op->column,
@@ -585,22 +617,11 @@ ASTNode* Parser::postfix()
 	{
 		if (peek() == TokenKind::TOKEN_L_PAREN)
 		{
-			Token* start = advance();
-			std::vector<ASTNode*> arguments;
-
-			while (tokens_left() && peek() != TokenKind::TOKEN_R_PAREN)
-			{
-				arguments.push_back(expression());
-
-				if (peek() == TokenKind::TOKEN_COMMA)
-					advance();
-			}
-
-			assert_current(TokenKind::TOKEN_R_PAREN, "Expect ')' after fn arguments");
-			expr = ctx->arena.alloc<ASTNode>(
+			std::vector<ASTNode*> arguments = argument_list();
+			expr = ctx->astArena.alloc<ASTNode>(
 				ASTKind::AST_FN_CALL,
-				start->line,
-				start->column,
+				expr->line,
+				expr->column,
 				ASTData(std::in_place_type<ASTFnCall>, expr, std::move(arguments)));
 		}
 		else if (peek() == TokenKind::TOKEN_L_BRACKET)
@@ -608,7 +629,7 @@ ASTNode* Parser::postfix()
 			Token* start = advance();
 			ASTNode* index = expression();
 			assert_current(TokenKind::TOKEN_R_BRACKET, "Expect ']' after array index");
-			expr = ctx->arena.alloc<ASTNode>(
+			expr = ctx->astArena.alloc<ASTNode>(
 				ASTKind::AST_ARRAY_ACCESS,
 				start->line,
 				start->column,
@@ -618,7 +639,7 @@ ASTNode* Parser::postfix()
 		{
 			Token* start = advance();
 			Token* identifier = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect identifier when accessing class fields");
-			expr = ctx->arena.alloc<ASTNode>(
+			expr = ctx->astArena.alloc<ASTNode>(
 				ASTKind::AST_FIELD_ACCESS,
 				start->line,
 				start->column,
@@ -631,13 +652,69 @@ ASTNode* Parser::postfix()
 	return expr;
 }
 
+ASTNode* Parser::array_literal()
+{
+	// consume and advance '[' token
+	Token* start = advance();
+	std::vector<ASTNode*> arr;
+
+	// check if the array is empty, if it's not, parse all provided expressions and push them into 'arr'
+	if (peek() != TokenKind::TOKEN_R_BRACKET)
+	{
+		arr.push_back(expression());
+
+		// continue while we keep finding commas separating values
+		while (peek() == TokenKind::TOKEN_COMMA)
+		{
+			// advance comma, then get the expression
+			advance();
+			arr.push_back(expression());
+		}
+	}
+
+	assert_current(TokenKind::TOKEN_R_BRACKET, "array literals must end with ']'");
+
+	return ctx->astArena.alloc<ASTNode>(
+		ASTKind::AST_ARRAY,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTArray>, std::move(arr)));
+}
+
+ASTNode* Parser::instantiation()
+{
+	// advance 'new' keyword
+	Token* start = advance();
+	Token* className = assert_current(TokenKind::TOKEN_IDENTIFIER, "expect identifier in class instantiation");
+
+	std::vector<std::string> path;
+	path.push_back(className->tokenLiteral);
+
+	// chained module access like var vec2 = new math.vector.Vec2()
+	while (peek() == TokenKind::TOKEN_DOT)
+	{
+		advance();
+		Token* moduleName = assert_current(TokenKind::TOKEN_IDENTIFIER, "expect valid module name");
+		path.push_back(moduleName->tokenLiteral);
+	}
+
+	// push the class name back into the vector last
+	std::vector<ASTNode*> args = argument_list();
+
+	return ctx->astArena.alloc<ASTNode>(
+		ASTKind::AST_INSTANTIATION,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTInstantiation>, std::move(path), std::move(args)));
+}
+
 ASTNode* Parser::primary()
 {
 	if (peek() == TokenKind::TOKEN_INT_LITERAL)
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_INT_LITERAL,
 			token->line,
 			token->column,
@@ -648,7 +725,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_FLOAT_LITERAL,
 			token->line,
 			token->column,
@@ -659,18 +736,29 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_STRING_LITERAL,
 			token->line,
 			token->column,
 			ASTData(std::in_place_type<ASTStringLiteral>, token->tokenLiteral));
 	}
 
+	// array literal
+	if (peek() == TokenKind::TOKEN_L_BRACKET)
+	{
+		return array_literal();
+	}
+
+	if (peek() == TokenKind::TOKEN_NEW)
+	{
+		return instantiation();
+	}
+
 	if (peek() == TokenKind::TOKEN_TRUE)
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BOOL_LITERAL,
 			token->line,
 			token->column,
@@ -681,7 +769,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_BOOL_LITERAL,
 			token->line,
 			token->column,
@@ -692,7 +780,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_NULL,
 			token->line,
 			token->column,
@@ -703,7 +791,7 @@ ASTNode* Parser::primary()
 	{
 		Token* token = advance();
 
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_IDENTIFIER,
 			token->line,
 			token->column,
@@ -721,7 +809,7 @@ ASTNode* Parser::primary()
 	if (peek() == TokenKind::TOKEN_THIS)
 	{
 		Token* start = advance();
-		return ctx->arena.alloc<ASTNode>(
+		return ctx->astArena.alloc<ASTNode>(
 			ASTKind::AST_THIS,
 			start->line,
 			start->column,
@@ -750,6 +838,24 @@ Token* Parser::advance()
 Token* Parser::prev_token()
 {
 	return &((*tokens)[currentIndex - 1]);
+}
+
+std::vector<ASTNode*> Parser::argument_list()
+{
+	// advance '(' token
+	Token* start = advance();
+	std::vector<ASTNode*> arguments;
+
+	while (tokens_left() && peek() != TokenKind::TOKEN_R_PAREN)
+	{
+		arguments.push_back(expression());
+
+		if (peek() == TokenKind::TOKEN_COMMA)
+			advance();
+	}
+
+	assert_current(TokenKind::TOKEN_R_PAREN, "Expect ')' after fn arguments");
+	return arguments;
 }
 
 bool Parser::tokens_left()

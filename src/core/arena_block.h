@@ -29,6 +29,8 @@ public:
 		offset = alignedOffset + sizeof(T);
 		return node;
 	}
+
+	inline size_t get_allocated_bytes() const { return offset; }
 private:
 	char* buffer;
 	size_t blockSize;

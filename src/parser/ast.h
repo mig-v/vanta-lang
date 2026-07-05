@@ -13,6 +13,7 @@ enum class ASTKind
 	AST_FLOAT_LITERAL,
 	AST_STRING_LITERAL,
 	AST_BOOL_LITERAL,
+	AST_ARRAY,
 	AST_VAR_DECL,
 	AST_FN_DECL,
 	AST_BLOCK,
@@ -34,7 +35,9 @@ enum class ASTKind
 	AST_CONTINUE,
 	AST_NULL,
 	AST_THIS,
-	AST_EXPR_STMT
+	AST_INSTANTIATION,
+	AST_EXPR_STMT,
+	AST_IMPORT_STMT
 };
 
 struct ASTIntLiteral
@@ -59,6 +62,13 @@ struct ASTBoolLiteral
 {
 	ASTBoolLiteral(bool value) : value(value) {}
 	bool value;
+};
+
+struct ASTArray
+{
+	ASTArray(std::vector<ASTNode*> arr) : arr(std::move(arr)) {}
+
+	std::vector<ASTNode*> arr;
 };
 
 struct ASTVarDecl
@@ -215,6 +225,23 @@ struct ASTExprStmt
 	ASTNode* expr;
 };
 
+struct ASTInstantiation
+{
+	ASTInstantiation(std::vector<std::string> path, std::vector<ASTNode*> args) : path(std::move(path)), args(std::move(args)) {}
+
+	// the last element is always the class name, every other element is module access
+	std::vector<std::string> path;
+	std::vector<ASTNode*> args;
+};
+
+struct ASTImportStmt
+{
+	ASTImportStmt(const std::string& importName, const std::string& alias) : importName(importName), alias(alias) {}
+
+	std::string importName;
+	std::string alias;
+};
+
 struct ASTBreak {};
 struct ASTContinue {};
 struct ASTNull {};
@@ -226,6 +253,7 @@ using ASTData = std::variant
 	ASTFloatLiteral,
 	ASTStringLiteral,
 	ASTBoolLiteral,
+	ASTArray,
 	ASTVarDecl,
 	ASTFnDecl,
 	ASTBlock,
@@ -247,7 +275,9 @@ using ASTData = std::variant
 	ASTContinue,
 	ASTNull,
 	ASTThis,
-	ASTExprStmt
+	ASTInstantiation,
+	ASTExprStmt,
+	ASTImportStmt
 >;
 
 struct ASTNode

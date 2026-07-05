@@ -53,7 +53,7 @@ bool LexerTestSuite::test_keywords()
     lexer.lex_file(PROJECT_ROOT"/tests/lexer/keywords.va");
     const std::vector<Token>& tokens = lexer.get_tokens();
 
-    REQUIRE(tokens.size() == 18, "mismatched token count", 18, tokens.size());
+    REQUIRE(tokens.size() == 19, "mismatched token count", 19, tokens.size());
 
     REQUIRE_TOKEN_KIND(tokens[0].kind, TokenKind::TOKEN_TRUE);
     REQUIRE_TOKEN_KIND(tokens[1].kind, TokenKind::TOKEN_FALSE);
@@ -72,7 +72,8 @@ bool LexerTestSuite::test_keywords()
     REQUIRE_TOKEN_KIND(tokens[14].kind, TokenKind::TOKEN_NULL);
     REQUIRE_TOKEN_KIND(tokens[15].kind, TokenKind::TOKEN_VAR);
     REQUIRE_TOKEN_KIND(tokens[16].kind, TokenKind::TOKEN_IN);
-    REQUIRE_TOKEN_KIND(tokens[17].kind, TokenKind::TOKEN_EOF);
+    REQUIRE_TOKEN_KIND(tokens[17].kind, TokenKind::TOKEN_NEW);
+    REQUIRE_TOKEN_KIND(tokens[18].kind, TokenKind::TOKEN_EOF);
 
     return true;
 }

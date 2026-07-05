@@ -1,55 +1,48 @@
 #include <iostream>
 
 #include "core/interpreter.h"
-
-#include "lexer/lexer.h"
-#include "parser/parser.h"
-#include "semantics/semantic_analyzer.h"
-#include "codegen/codegen.h"
-#include "runtime/runtime.h"
+#include "core/compilation_unit.h"
 
 #include "test_suite/lexer_test_suite.h"
 #include "test_suite/parser_test_suite.h"
 
-#include "utils/debug_utils.h"
+#include "runtime/runtime.h"
 
-void Interpreter::run()
+void Interpreter::run(const std::string& mainPath)
 {
-	Lexer lexer;
-	Parser parser;
-	SemanticAnalyzer semanticAnalyzer;
-	Codegen codegen;
+	std::unordered_set<std::string> inProgressImports;
 	Runtime runtime;
+	CompilationUnit main;
 
-	if (!lexer.lex_file(PROJECT_ROOT"/examples/main.va"))
-		return;
+	main.run_pipeline(mainPath, ctx, inProgressImports);
 
-	lexer.dump_tokens();
-	parser.parse_tokens(lexer.get_tokens_ptr(), &ctx);
 	if (ctx.reporter.has_errors())
 	{
 		ctx.reporter.log_diagnostics();
 		return;
 	}
 
-	std::cout << Utils::serialize_ast(parser.get_ast());
+	compilationUnits.push_back(std::move(main));
 
-	semanticAnalyzer.analyze(parser.get_ast(), &ctx);
-	if (ctx.reporter.has_errors())
-	{
-		ctx.reporter.log_diagnostics();
-		return;
-	}
+#ifdef _DEBUG
+	size_t astBytesAlloced = ctx.astArena.get_total_allocated_bytes();
+	size_t astBlock = ctx.astArena.get_block_count();
+	size_t compilerBytesAlloced = ctx.compilerArena.get_total_allocated_bytes();
+	size_t compilerBlockCount = ctx.compilerArena.get_block_count();
 
-	Module* module = codegen.compile(parser.get_ast(), &ctx);
-	if (ctx.reporter.has_errors())
-	{
-		ctx.reporter.log_diagnostics();
-		return;
-	}
-	std::cout << Utils::disassemble_module(module);
+	std::cout
+		<< "[AST Memory Arena]\n"
+		<< "    byted allocated: " << astBytesAlloced << "\n"
+		<< "    block count    : " << astBlock << "\n\n"
+		<< "[Compiler Memory Arena]\n"
+		<< "    byted allocated: " << compilerBytesAlloced << "\n"
+		<< "    block count    : " << compilerBlockCount << "\n";
+#endif
 
-	runtime.execute(module);
+	// free the ast arena memory when going to the runtime since we no longer need the AST nodes anymore
+	ctx.astArena.free_arena();
+
+	runtime.execute(compilationUnits);
 }
 
 void Interpreter::run_tests()

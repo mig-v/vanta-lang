@@ -4,10 +4,18 @@
 
 int main(int argc, char** argv)
 {
+	if (argc != 2)
+	{
+		std::cout << "usage: vanta <filepath>" << std::endl;
+		return 1;
+	}
+
+	std::string filepath = argv[1];
+	std::cout << "Main filepath: " << filepath << std::endl;
 	Interpreter interpreter;
 	interpreter.run_tests();
-
-	interpreter.run();
+	
+	interpreter.run(filepath);
 
 	//Lexer lexer;
 	//Parser parser;

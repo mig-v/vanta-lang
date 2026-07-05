@@ -10,7 +10,6 @@ class SemanticAnalyzer
 {
 public:
 	SemanticAnalyzer();
-
 	void analyze(const std::vector<ASTNode*>& ast, PipelineContext* ctx);
 private:
 	void analyze_node(ASTNode* node);
@@ -21,7 +20,10 @@ private:
 	int fnDeclDepth;
 	int classDeclDepth;
 
+	bool inConstructor;
+
 	// track and fn params and class members to detect when duplicate params / members are made
 	std::unordered_set<std::string> fnParams;
 	std::unordered_set<std::string> classMembers;
+	std::string currentClassName;
 };

@@ -12,7 +12,6 @@ enum class Opcode : uint8_t
 	LOAD_LOCAL,		// 2 byte operand <slot>, pushes stack[frame_base + slot] onto the stack
 
 	RETURN,			// no operand, returns from function and restores stack state / ip, return value is pushed onto the stack
-	NULL_RETURN,	// no operand, used when no return value is used for explicitness
 
 	// binary ops, all work in the same way: no operands, pops the top two values on stack, performs their binary operation on them, pushes result
 	// for ops where order matters, the rhs is always at the top of the stack the stack would be stack[..., 1, 2] for the expression 1 << 2
@@ -54,6 +53,9 @@ enum class Opcode : uint8_t
 	// 2 byte operand <argc>
 	CALL_FN,
 
+	// 2 operands, 2 byte <nameIndex>, and 2 byte <argc>
+	CALL_METHOD,
+
 	// no operands, arr and index are on the stack
 	ARRAY_LOAD,
 	ARRAY_STORE,
@@ -62,6 +64,19 @@ enum class Opcode : uint8_t
 	// get the slot for the field via the instances class decl reference field table
 	LOAD_FIELD,
 	STORE_FIELD,
+
+	// 2 byte operand <element_count>, pop off number of elements from the stack and create a new array object
+	MAKE_ARR,
+
+	// 2 byte operand <class_index>, store module.classes[class_index] in newly created instance and push instance on the stack
+	MAKE_INSTANCE,
+
+	// 2 byte operand <name_index> resolves to the name of the class as a string in the constants table
+	MAKE_MODULE_INSTANCE,
+
+	// no operands, iter, end, and step pushed onto the stack in that order
+	FOR_ITER_RANGE,
+	FOR_ITER_COLL,
 
 	EXIT
 };

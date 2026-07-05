@@ -40,6 +40,9 @@ void Lexer::fill_keyword_map()
 	keywords["null"] = TokenKind::TOKEN_NULL;
 	keywords["in"] = TokenKind::TOKEN_IN;
 	keywords["this"] = TokenKind::TOKEN_THIS;
+	keywords["new"] = TokenKind::TOKEN_NEW;
+	keywords["import"] = TokenKind::TOKEN_IMPORT;
+	keywords["as"] = TokenKind::TOKEN_AS;
 }
 
 bool Lexer::lex_file(const std::string& filepath)

@@ -19,9 +19,27 @@ public:
 
 	~MemoryArena()
 	{
+		free_arena();
+	}
+
+	void free_arena()
+	{
 		for (ArenaBlock* block : blocks)
 			delete block;
+
+		blocks.clear();
 	}
+
+	inline size_t get_total_allocated_bytes() const
+	{
+		size_t total = 0;
+		for (ArenaBlock* block : blocks)
+			total += block->get_allocated_bytes();
+
+		return total;
+	}
+
+	inline size_t get_block_count() const { return blocks.size(); }
 
 	template<typename T, typename... Args>
 	T* alloc(Args&&... args)

@@ -20,11 +20,13 @@ struct Chunk
 	std::vector<Value> constants; // constants are any compile time first class values such as functions, literals, etc.
 };
 
-struct Module
+struct CompiledModule
 {
-	std::string name;
-	std::string filepath;
+	std::string name;			// name of the module itself, or the alias provided by an import. e.g. math or 'm' in the case -> [import math as m]
+	std::string filepath;		// actual filepath of the file compiled, e.g. src/renderer/renderer.va
 	std::vector<Value> globals;
 	std::vector<ClassDecl*> classes;
+	std::unordered_map<std::string, uint16_t> moduleMap;
+	std::unordered_map<std::string, uint16_t> exports;	// table of identifiers -> slot mapping of global symbols in a file
 	Function* root; // main entry of the module
 };

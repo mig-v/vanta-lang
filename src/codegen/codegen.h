@@ -40,8 +40,9 @@ class Codegen
 public:
 	Codegen();
 
-	Module* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx);
+	CompiledModule* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath);
 private:
+	void collect_global_symbols(const std::vector<ASTNode*>& ast, const std::string& filepath);
 	void compile_node(ASTNode* node);
 	void compile_scoped_node(ASTNode* body);
 
@@ -62,13 +63,19 @@ private:
 	void emit_method(ASTNode* node);
 	void emit_field_decl(ASTNode* node);
 	void emit_var_decl(ASTNode* node);
+	void emit_implicit_null_return();
+	void emit_local_class_instantiation(ASTNode* node);
+	void emit_module_class_instantiation(ASTNode* node);
 
 	void patch_loop_context(LoopContext& loopCtx);
 	void patch_jump(uint16_t address);
 
+	void register_built_ins();
+	void register_built_in_fn(const std::string& name, const Value& nativeFn);
+
 	Function* make_fn(const std::string& name, uint16_t argc, uint16_t localsCount);
 
-	void add_global_at_slot(const Value& value, uint16_t slot);
+	void add_global_at_slot(const std::string& identifier, const Value& value, uint16_t slot);
 	uint16_t add_constant_to_chunk(const Value& value);
 	Chunk* get_current_chunk();
 
@@ -78,9 +85,11 @@ private:
 
 	Environment env;
 	PipelineContext* ctx;
-	Module* module;
+	CompiledModule* module;
 	Function* currentFn;
 	ClassDecl* currentClass;
 	bool classDepth;
+	bool inUserFn;
+	bool inConstructor;
 	std::vector<LoopContext> loopStack;
 };

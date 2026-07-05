@@ -43,6 +43,9 @@ enum class TokenKind
 	TOKEN_VAR,
 	TOKEN_IN,
 	TOKEN_THIS,
+	TOKEN_NEW,
+	TOKEN_IMPORT,
+	TOKEN_AS,
 
 	// delimiters
 	TOKEN_L_PAREN,

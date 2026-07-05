@@ -19,7 +19,7 @@ namespace Utils
 
 	const char* opcode_to_string(Opcode opcode);
 	int get_opcode_operand_count(Opcode opcode);
-	std::string disassemble_module(Module* module);
+	std::string disassemble_compiled_module(CompiledModule* module);
 	void disassemble_value(const Value& value, std::ostringstream& oss, int depth);
 	void disassemble_chunk(Chunk* chunk, std::ostringstream& oss, int depth);
 	void disassemble_class_decl(ClassDecl* decl, std::ostringstream& oss, int depth);

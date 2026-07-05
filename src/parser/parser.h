@@ -19,6 +19,8 @@ public:
 	inline const std::vector<ASTNode*> get_ast() { return ast; }
 
 private:
+	ASTNode* program();
+	ASTNode* import_stmt();
 	ASTNode* statement();
 	ASTNode* var_decl();
 	ASTNode* fn_decl();
@@ -49,10 +51,14 @@ private:
 	ASTNode* postfix();
 	ASTNode* block();
 	ASTNode* primary();
+	ASTNode* array_literal();
+	ASTNode* instantiation();
 
 	TokenKind peek();
 	Token* advance();
 	Token* prev_token();
+
+	std::vector<ASTNode*> argument_list();
 
 	bool tokens_left();
 	bool peek_is_assignment_op();
