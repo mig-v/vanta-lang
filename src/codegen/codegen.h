@@ -80,6 +80,7 @@ private:
 	Chunk* get_current_chunk();
 
 	bool class_declared_in_module(const std::string& className);
+	ClassDecl* find_class_with_name(const std::string name);
 
 	int alloc_slot(const std::string& identifier);
 

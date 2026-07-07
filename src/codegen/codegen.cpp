@@ -71,6 +71,17 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 			// correctly get the entry for registered functions and add them as a global slot in the modules globals table
 			alloc_slot(data.identifier);
 		}
+		else if (node->kind == ASTKind::AST_CLASS_DECL)
+		{
+			const ASTClassDecl& data = std::get<ASTClassDecl>(node->data);
+			if (class_declared_in_module(data.identifier))
+			{
+				ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "duplicate class identifier \"" + data.identifier + "\"", node->line, node->column }));
+				continue;
+			}
+
+			module->classes.push_back(ctx->compilerArena.alloc<ClassDecl>(data.identifier));
+		}
 	}
 }
 
@@ -402,34 +413,10 @@ void Codegen::emit_local_class_instantiation(ASTNode* node)
 	for (ASTNode* arg : data.args)
 		compile_node(arg);
 
-	// if 0 args are passed, then there either must be no provided constructor, or a constructor with 0 args
-	// if > 0 args are passed, then there has to be a constructor with that many args
-	auto& constructor = module->classes[declIndex]->methods.find(className);
-
-	// constructor provided, args must match count or error
-	if (constructor != module->classes[declIndex]->methods.end())
-	{
-		if (constructor->second->argc != data.args.size())
-		{
-			ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "no constructor with " + std::to_string(data.args.size()) + " arguments exists for class \"" + className + "\"", node->line, node->column }));
-			return;
-		}
-
-		uint16_t nameIndex = add_constant_to_chunk(Value(className));
-		emit_opcode(Opcode::CALL_METHOD);
-		emit_operand(nameIndex);
-		emit_operand(data.args.size());
-	}
-
-	// constructor not provided, arg count must be 0 or error
-	else
-	{
-		if (data.args.size() > 0)
-		{
-			ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "no constructor exists for class \"" + className + "\"", node->line, node->column }));
-			return;
-		}
-	}
+	uint16_t nameIndex = add_constant_to_chunk(Value(className));
+	emit_opcode(Opcode::CALL_METHOD);
+	emit_operand(nameIndex);
+	emit_operand(data.args.size());
 }
 
 void Codegen::emit_module_class_instantiation(ASTNode* node)
@@ -632,6 +619,17 @@ bool Codegen::class_declared_in_module(const std::string& className)
 	}
 
 	return false;
+}
+
+ClassDecl* Codegen::find_class_with_name(const std::string name)
+{
+	for (ClassDecl* decl : module->classes)
+	{
+		if (decl->name == name)
+			return decl;
+	}
+
+	return nullptr;
 }
 
 int Codegen::alloc_slot(const std::string& identifier)
@@ -884,14 +882,14 @@ void Codegen::compile_node(ASTNode* node)
 		case ASTKind::AST_CLASS_DECL:
 		{
 			const ASTClassDecl& data = std::get<ASTClassDecl>(node->data);
-			if (class_declared_in_module(data.identifier))
+
+			currentClass = find_class_with_name(data.identifier);
+
+			if (!currentClass)
 			{
-				ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "duplicate class identifier \"" + data.identifier + "\"", node->line, node->column}));
+				ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "undefined class with name \"" + data.identifier + "\"", node->line, node->column}));
 				break;
 			}
-
-			currentClass = ctx->compilerArena.alloc<ClassDecl>(data.identifier);
-			module->classes.push_back(currentClass);
 
 			for (ASTNode* member : data.members)
 				compile_node(member);
