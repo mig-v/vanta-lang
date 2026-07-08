@@ -452,8 +452,30 @@ void Lexer::lex_string()
 	token.line = line;
 	token.kind = TokenKind::TOKEN_STRING_LITERAL;
 
-	while (peek() != '"')
-		token.tokenLiteral += advance();
+	while (peek() != '"' && !eof())
+	{
+		char c = advance();
+
+		// check for escape characters
+		if (c == '\\' && !eof())
+		{
+			char escapeChar = advance();
+			switch (escapeChar)
+			{
+				case 'n':  token.tokenLiteral += '\n'; break;
+				case 'r':  token.tokenLiteral += '\r'; break;
+				case 't':  token.tokenLiteral += '\t'; break;
+				case '\\': token.tokenLiteral += '\\'; break;
+				case '"':  token.tokenLiteral += '"';  break;
+				case '\'': token.tokenLiteral += '\''; break;
+				case '0':  token.tokenLiteral += '\0'; break;
+			}
+		}
+		else
+		{
+			token.tokenLiteral += c;
+		}
+	}
 
 	// consume the closing '"'
 	advance();
