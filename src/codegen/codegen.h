@@ -45,20 +45,19 @@ private:
 	void collect_global_symbols(const std::vector<ASTNode*>& ast, const std::string& filepath);
 	void compile_node(ASTNode* node);
 	void compile_scoped_node(ASTNode* body);
-
 	IterContext compile_iterable_node(ASTNode* node, uint16_t iteratorSlot);
 
-	void emit_opcode(Opcode opcode);
-	uint16_t emit_operand(uint16_t operand);	// returns the bytecode address of where <operand> was written
+	void emit_opcode(Opcode opcode, int sourceLine);
+	uint16_t emit_operand(uint16_t operand, int sourceLine);	// returns the bytecode address of where <operand> was written
 	void emit_store_lhs(ASTNode* lhs);
 	void emit_load_lhs(ASTNode* lhs);
-	void emit_store_for_entry(EnvEntry entry);
-	void emit_load_for_entry(EnvEntry entry);
-	void emit_compound_assignment_op(TokenKind op);
-	void emit_binary_op(TokenKind op);
-	void emit_unary_op(TokenKind op);
-	void emit_iterable_condition_check(IterContext& iterCtx);
-	void emit_iterable_increment(IterContext& iterCtx);
+	void emit_store_for_entry(EnvEntry entry, int sourceLine);
+	void emit_load_for_entry(EnvEntry entry, int sourceLine);
+	void emit_compound_assignment_op(TokenKind op, int sourceLine);
+	void emit_binary_op(TokenKind op, int sourceLine);
+	void emit_unary_op(TokenKind op, int sourceLine);
+	void emit_iterable_condition_check(IterContext& iterCtx, int sourceLine);
+	void emit_iterable_increment(IterContext& iterCtx, int sourceLine);
 	void emit_function(ASTNode* node);
 	void emit_method(ASTNode* node);
 	void emit_field_decl(ASTNode* node);
@@ -83,6 +82,7 @@ private:
 	ClassDecl* find_class_with_name(const std::string name);
 
 	int alloc_slot(const std::string& identifier);
+	int get_last_line_in_chunk();
 
 	Environment env;
 	PipelineContext* ctx;

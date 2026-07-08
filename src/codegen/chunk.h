@@ -14,10 +14,21 @@ struct ClassDecl
 	std::unordered_map<std::string, Function*> methods; // map method name to function object
 };
 
+struct LineInfo
+{
+	LineInfo(int line, int span) : line(line), span(span) {}
+
+	int line; // the source line an opcode points to
+	int span; // the number of opcodes / operands this single line spans
+};
+
 struct Chunk
 {
 	std::vector<uint8_t> code;
 	std::vector<Value> constants; // constants are any compile time first class values such as functions, literals, etc.
+	std::vector<LineInfo> lines;  // line tracking info for printing runtime errors
+
+	int get_line_with_offset(size_t bytecodeOffset) const;
 };
 
 struct CompiledModule

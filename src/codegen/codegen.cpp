@@ -21,7 +21,7 @@ CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineConte
 
 	module = ctx->compilerArena.alloc<CompiledModule>();
 	module->filepath = filepath;
-	module->root = make_fn(filepath + "_root", 0, 0);
+	module->root = make_fn("_main", 0, 0);
 
 	currentFn = module->root;
 
@@ -33,7 +33,7 @@ CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineConte
 
 	// resize the modules globals array to account for all globals defined, the global scope will be the last scope remaining when compilation is done
 	module->globals.resize(env.current_scope_slot_count());
-	emit_opcode(Opcode::EXIT);
+	emit_opcode(Opcode::EXIT, ast.size() > 0 ? ast.back()->line : 0);
 	return module;
 }
 
@@ -97,18 +97,31 @@ void Codegen::register_built_in_fn(const std::string& name, const Value& nativeF
 	add_global_at_slot(name, nativeFn, slot);
 }
 
-void Codegen::emit_opcode(Opcode opcode)
+void Codegen::emit_opcode(Opcode opcode, int sourceLine)
 {
 	Chunk* curr = get_current_chunk();
 	curr->code.push_back(static_cast<uint8_t>(opcode));
+
+	int line = get_last_line_in_chunk();
+	if (line == sourceLine)
+		curr->lines.back().span++;
+	else
+		curr->lines.push_back(LineInfo(sourceLine, 1));
 }
 
-uint16_t Codegen::emit_operand(uint16_t operand)
+uint16_t Codegen::emit_operand(uint16_t operand, int sourceLine)
 {
 	Chunk* curr = get_current_chunk();
 	uint16_t address = curr->code.size();
 	curr->code.push_back(static_cast<uint8_t>(operand & 0xFF));			// write low byte
 	curr->code.push_back(static_cast<uint8_t>(operand >> 8) & 0xFF);	// write high byte
+
+	int line = get_last_line_in_chunk();
+	if (line == sourceLine)
+		curr->lines.back().span += 2;
+	else
+		curr->lines.push_back(LineInfo(sourceLine, 2));
+
 	return address;
 }
 
@@ -126,7 +139,7 @@ void Codegen::emit_store_lhs(ASTNode* lhs)
 			return;
 		}
 
-		emit_store_for_entry(entry);
+		emit_store_for_entry(entry, lhs->line);
 	}
 
 	// writing to an array slot -> arr[i] = val
@@ -135,7 +148,7 @@ void Codegen::emit_store_lhs(ASTNode* lhs)
 		const ASTArrayAccess& data = std::get<ASTArrayAccess>(lhs->data);
 		compile_node(data.arr);
 		compile_node(data.index);
-		emit_opcode(Opcode::ARRAY_STORE);
+		emit_opcode(Opcode::ARRAY_STORE, lhs->line);
 	}
 
 	// writing to a field, foo.x = val
@@ -144,8 +157,8 @@ void Codegen::emit_store_lhs(ASTNode* lhs)
 		const ASTFieldAccess& data = std::get<ASTFieldAccess>(lhs->data);
 		compile_node(data.object);
 		uint16_t fieldIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, data.field)));
-		emit_opcode(Opcode::STORE_FIELD);
-		emit_operand(fieldIndex);
+		emit_opcode(Opcode::STORE_FIELD, lhs->line);
+		emit_operand(fieldIndex, lhs->line);
 	}
 }
 
@@ -162,14 +175,14 @@ void Codegen::emit_load_lhs(ASTNode* lhs)
 			return;
 		}
 
-		emit_load_for_entry(entry);
+		emit_load_for_entry(entry, lhs->line);
 	}
 	else if (lhs->kind == ASTKind::AST_ARRAY_ACCESS)
 	{
 		const ASTArrayAccess& data = std::get<ASTArrayAccess>(lhs->data);
 		compile_node(data.arr);
 		compile_node(data.index);
-		emit_opcode(Opcode::ARRAY_LOAD);
+		emit_opcode(Opcode::ARRAY_LOAD, lhs->line);
 	}
 
 	// load the value of foo.x by pushing it onto the stack
@@ -178,51 +191,51 @@ void Codegen::emit_load_lhs(ASTNode* lhs)
 		const ASTFieldAccess& data = std::get<ASTFieldAccess>(lhs->data);
 		compile_node(data.object);
 		uint16_t fieldIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, data.field)));
-		emit_opcode(Opcode::LOAD_FIELD);
-		emit_operand(fieldIndex);
+		emit_opcode(Opcode::LOAD_FIELD, lhs->line);
+		emit_operand(fieldIndex, lhs->line);
 	}
 }
 
-void Codegen::emit_store_for_entry(EnvEntry entry)
+void Codegen::emit_store_for_entry(EnvEntry entry, int sourceLine)
 {
 	if (entry.scope == 0)
 	{
-		emit_opcode(Opcode::STORE_GLOBAL);
-		emit_operand(static_cast<uint16_t>(entry.slot));
+		emit_opcode(Opcode::STORE_GLOBAL, sourceLine);
+		emit_operand(static_cast<uint16_t>(entry.slot), sourceLine);
 	}
 	else
 	{
-		emit_opcode(Opcode::STORE_LOCAL);
-		emit_operand(static_cast<uint16_t>(entry.slot));
+		emit_opcode(Opcode::STORE_LOCAL, sourceLine);
+		emit_operand(static_cast<uint16_t>(entry.slot), sourceLine);
 	}
 }
 
-void Codegen::emit_load_for_entry(EnvEntry entry)
+void Codegen::emit_load_for_entry(EnvEntry entry, int sourceLine)
 {
 	if (entry.scope == 0)
 	{
-		emit_opcode(Opcode::LOAD_GLOBAL);
-		emit_operand(static_cast<uint16_t>(entry.slot));
+		emit_opcode(Opcode::LOAD_GLOBAL, sourceLine);
+		emit_operand(static_cast<uint16_t>(entry.slot), sourceLine);
 	}
 	else
 	{
-		emit_opcode(Opcode::LOAD_LOCAL);
-		emit_operand(static_cast<uint16_t>(entry.slot));
+		emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+		emit_operand(static_cast<uint16_t>(entry.slot), sourceLine);
 	}
 }
 
-void Codegen::emit_compound_assignment_op(TokenKind op)
+void Codegen::emit_compound_assignment_op(TokenKind op, int sourceLine)
 {
 	switch (op)
 	{
-		case TokenKind::TOKEN_PLUS_EQUALS:   emit_opcode(Opcode::ADD); break;
-		case TokenKind::TOKEN_MINUS_EQUALS:  emit_opcode(Opcode::SUB); break;
-		case TokenKind::TOKEN_TIMES_EQUALS:  emit_opcode(Opcode::MUL); break;
-		case TokenKind::TOKEN_DIVIDE_EQUALS: emit_opcode(Opcode::DIV); break;
+		case TokenKind::TOKEN_PLUS_EQUALS:   emit_opcode(Opcode::ADD, sourceLine); break;
+		case TokenKind::TOKEN_MINUS_EQUALS:  emit_opcode(Opcode::SUB, sourceLine); break;
+		case TokenKind::TOKEN_TIMES_EQUALS:  emit_opcode(Opcode::MUL, sourceLine); break;
+		case TokenKind::TOKEN_DIVIDE_EQUALS: emit_opcode(Opcode::DIV, sourceLine); break;
 	}
 }
 
-void Codegen::emit_binary_op(TokenKind op)
+void Codegen::emit_binary_op(TokenKind op, int sourceLine)
 {
 	// binary expr includes: 
 	// comparison ops: <, <=, >, >=
@@ -231,40 +244,40 @@ void Codegen::emit_binary_op(TokenKind op)
 	// arithmetic ops: +, -, *, /, %, **
 	switch (op)
 	{
-		case TokenKind::TOKEN_PLUS:            emit_opcode(Opcode::ADD); break;
-		case TokenKind::TOKEN_MINUS:           emit_opcode(Opcode::SUB); break;
-		case TokenKind::TOKEN_ASTERISK:        emit_opcode(Opcode::MUL); break;
-		case TokenKind::TOKEN_FORWARD_SLASH:   emit_opcode(Opcode::DIV); break;
-		case TokenKind::TOKEN_MODULO:          emit_opcode(Opcode::MOD); break;
-		case TokenKind::TOKEN_POWER:           emit_opcode(Opcode::POW); break;
+		case TokenKind::TOKEN_PLUS:            emit_opcode(Opcode::ADD, sourceLine); break;
+		case TokenKind::TOKEN_MINUS:           emit_opcode(Opcode::SUB, sourceLine); break;
+		case TokenKind::TOKEN_ASTERISK:        emit_opcode(Opcode::MUL, sourceLine); break;
+		case TokenKind::TOKEN_FORWARD_SLASH:   emit_opcode(Opcode::DIV, sourceLine); break;
+		case TokenKind::TOKEN_MODULO:          emit_opcode(Opcode::MOD, sourceLine); break;
+		case TokenKind::TOKEN_POWER:           emit_opcode(Opcode::POW, sourceLine); break;
 
-		case TokenKind::TOKEN_LT:              emit_opcode(Opcode::LT); break;
-		case TokenKind::TOKEN_LTE:             emit_opcode(Opcode::LTE); break;
-		case TokenKind::TOKEN_GT:              emit_opcode(Opcode::GT); break;
-		case TokenKind::TOKEN_GTE:             emit_opcode(Opcode::GTE); break;
+		case TokenKind::TOKEN_LT:              emit_opcode(Opcode::LT, sourceLine); break;
+		case TokenKind::TOKEN_LTE:             emit_opcode(Opcode::LTE, sourceLine); break;
+		case TokenKind::TOKEN_GT:              emit_opcode(Opcode::GT, sourceLine); break;
+		case TokenKind::TOKEN_GTE:             emit_opcode(Opcode::GTE, sourceLine); break;
 
-		case TokenKind::TOKEN_EQUALITY:        emit_opcode(Opcode::EQ); break;
-		case TokenKind::TOKEN_NOT_EQUALITY:    emit_opcode(Opcode::NEQ); break;
+		case TokenKind::TOKEN_EQUALITY:        emit_opcode(Opcode::EQ, sourceLine); break;
+		case TokenKind::TOKEN_NOT_EQUALITY:    emit_opcode(Opcode::NEQ, sourceLine); break;
 
-		case TokenKind::TOKEN_BITWISE_AND:     emit_opcode(Opcode::AND); break;
-		case TokenKind::TOKEN_BITWISE_OR:      emit_opcode(Opcode::OR); break;
-		case TokenKind::TOKEN_BITWISE_XOR:     emit_opcode(Opcode::XOR); break;
-		case TokenKind::TOKEN_BITWISE_L_SHIFT: emit_opcode(Opcode::L_SHIFT); break;
-		case TokenKind::TOKEN_BITWISE_R_SHIFT: emit_opcode(Opcode::R_SHIFT); break;
+		case TokenKind::TOKEN_BITWISE_AND:     emit_opcode(Opcode::AND, sourceLine); break;
+		case TokenKind::TOKEN_BITWISE_OR:      emit_opcode(Opcode::OR, sourceLine); break;
+		case TokenKind::TOKEN_BITWISE_XOR:     emit_opcode(Opcode::XOR, sourceLine); break;
+		case TokenKind::TOKEN_BITWISE_L_SHIFT: emit_opcode(Opcode::L_SHIFT, sourceLine); break;
+		case TokenKind::TOKEN_BITWISE_R_SHIFT: emit_opcode(Opcode::R_SHIFT, sourceLine); break;
 	}
 }
 
-void Codegen::emit_unary_op(TokenKind op)
+void Codegen::emit_unary_op(TokenKind op, int sourceLine)
 {
 	switch (op)
 	{
-		case TokenKind::TOKEN_BITWISE_NOT: emit_opcode(Opcode::NOT); break;
-		case TokenKind::TOKEN_NOT: emit_opcode(Opcode::LOGICAL_NOT); break;
-		case TokenKind::TOKEN_MINUS: emit_opcode(Opcode::NEG); break;
+		case TokenKind::TOKEN_BITWISE_NOT: emit_opcode(Opcode::NOT, sourceLine); break;
+		case TokenKind::TOKEN_NOT: emit_opcode(Opcode::LOGICAL_NOT, sourceLine); break;
+		case TokenKind::TOKEN_MINUS: emit_opcode(Opcode::NEG, sourceLine); break;
 	}
 }
 
-void Codegen::emit_iterable_condition_check(IterContext& iterCtx)
+void Codegen::emit_iterable_condition_check(IterContext& iterCtx, int sourceLine)
 {
 	// handle range based condition check
 	if (std::holds_alternative<RangeIterContext>(iterCtx))
@@ -273,27 +286,27 @@ void Codegen::emit_iterable_condition_check(IterContext& iterCtx)
 		// we cant know at compile time what comparison to emit, so we need to load the iterator, end, and step
 		// and determine at runtime to run a > or < comparison
 		RangeIterContext& range = std::get<RangeIterContext>(iterCtx);
-		emit_opcode(Opcode::LOAD_LOCAL);
-		emit_operand(range.iterSlot);
-		emit_opcode(Opcode::LOAD_LOCAL);
-		emit_operand(range.endSlot);
+		emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+		emit_operand(range.iterSlot, sourceLine);
+		emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+		emit_operand(range.endSlot, sourceLine);
 
 		if (range.stepSlot != -1)
 		{
-			emit_opcode(Opcode::LOAD_LOCAL);
-			emit_operand(range.stepSlot);
+			emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+			emit_operand(range.stepSlot, sourceLine);
 		}
 		else
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_INT, ValueData(std::in_place_type<int64_t>, 1)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, sourceLine);
+			emit_operand(constIndex, sourceLine);
 		}
 
-		emit_opcode(Opcode::FOR_ITER_RANGE);
-		emit_opcode(Opcode::JMP_IF_FALSE);
-		range.endJmpPatch = emit_operand(0xFFFF);
-		emit_opcode(Opcode::POP);
+		emit_opcode(Opcode::FOR_ITER_RANGE, sourceLine);
+		emit_opcode(Opcode::JMP_IF_FALSE, sourceLine);
+		range.endJmpPatch = emit_operand(0xFFFF, sourceLine);
+		emit_opcode(Opcode::POP, sourceLine);
 	}
 
 	// todo: handle collection iter condition check
@@ -304,7 +317,7 @@ void Codegen::emit_iterable_condition_check(IterContext& iterCtx)
 
 }
 
-void Codegen::emit_iterable_increment(IterContext& iterCtx)
+void Codegen::emit_iterable_increment(IterContext& iterCtx, int sourceLine)
 {
 	// handle range based condition check
 	if (std::holds_alternative<RangeIterContext>(iterCtx))
@@ -318,35 +331,35 @@ void Codegen::emit_iterable_increment(IterContext& iterCtx)
 		loopStack.back().startAddress = get_current_chunk()->code.size();
 
 		// always need to load iter
-		emit_opcode(Opcode::LOAD_LOCAL);
-		emit_operand(range.iterSlot);
+		emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+		emit_operand(range.iterSlot, sourceLine);
 
 		// step is provided
 		if (range.stepSlot != -1)
 		{
-			emit_opcode(Opcode::LOAD_LOCAL);
-			emit_operand(range.stepSlot);
+			emit_opcode(Opcode::LOAD_LOCAL, sourceLine);
+			emit_operand(range.stepSlot, sourceLine);
 		}
 
 		// step is not provided, increment by default value of 1
 		else
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_INT, ValueData(std::in_place_type<int64_t>, 1)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, sourceLine);
+			emit_operand(constIndex, sourceLine);
 		}
 
 		// always add after iter and (default or provided) step is loaded
-		emit_opcode(Opcode::ADD);
-		emit_opcode(Opcode::STORE_LOCAL);
-		emit_operand(range.iterSlot);
+		emit_opcode(Opcode::ADD, sourceLine);
+		emit_opcode(Opcode::STORE_LOCAL, sourceLine);
+		emit_operand(range.iterSlot, sourceLine);
 
-		emit_opcode(Opcode::JMP);
-		emit_operand(range.conditionAddress);
+		emit_opcode(Opcode::JMP, sourceLine);
+		emit_operand(range.conditionAddress, sourceLine);
 
 		// this is the end of the for loop (the only place where iterables can occur), so we can backpatch the end jmp right here
 		patch_jump(range.endJmpPatch);
-		emit_opcode(Opcode::POP);
+		emit_opcode(Opcode::POP, sourceLine);
 	}
 
 	// todo: handle collection iter increment
@@ -406,17 +419,17 @@ void Codegen::emit_local_class_instantiation(ASTNode* node)
 	}
 	else
 	{
-		emit_opcode(Opcode::MAKE_INSTANCE);
-		emit_operand(static_cast<uint16_t>(declIndex));
+		emit_opcode(Opcode::MAKE_INSTANCE, node->line);
+		emit_operand(static_cast<uint16_t>(declIndex), node->line);
 	}
 
 	for (ASTNode* arg : data.args)
 		compile_node(arg);
 
 	uint16_t nameIndex = add_constant_to_chunk(Value(className));
-	emit_opcode(Opcode::CALL_METHOD);
-	emit_operand(nameIndex);
-	emit_operand(data.args.size());
+	emit_opcode(Opcode::CALL_METHOD, node->line);
+	emit_operand(nameIndex, node->line);
+	emit_operand(data.args.size(), node->line);
 }
 
 void Codegen::emit_module_class_instantiation(ASTNode* node)
@@ -433,29 +446,29 @@ void Codegen::emit_module_class_instantiation(ASTNode* node)
 	}
 
 	// load the root module
-	emit_opcode(Opcode::LOAD_GLOBAL);
-	emit_operand(static_cast<uint16_t>(entry.slot));
+	emit_opcode(Opcode::LOAD_GLOBAL, node->line);
+	emit_operand(static_cast<uint16_t>(entry.slot), node->line);
 
 	// emit load_field opcodes for each segment that is NOT the class name
 	for (int i = 1; i < data.path.size() - 1; i++)
 	{
 		uint16_t constIndex = add_constant_to_chunk(Value(data.path[i]));
-		emit_opcode(Opcode::LOAD_FIELD);
-		emit_operand(constIndex);
+		emit_opcode(Opcode::LOAD_FIELD, node->line);
+		emit_operand(constIndex, node->line);
 	}
 
 	const std::string& className = data.path.back();
 
 	uint16_t constIndex = add_constant_to_chunk(Value(className));
-	emit_opcode(Opcode::MAKE_MODULE_INSTANCE);
-	emit_operand(constIndex);
+	emit_opcode(Opcode::MAKE_MODULE_INSTANCE, node->line);
+	emit_operand(constIndex, node->line);
 
 	for (ASTNode* arg : data.args)
 		compile_node(arg);
 
-	emit_opcode(Opcode::CALL_METHOD);
-	emit_operand(constIndex);
-	emit_operand(static_cast<uint16_t>(data.args.size()));
+	emit_opcode(Opcode::CALL_METHOD, node->line);
+	emit_operand(constIndex, node->line);
+	emit_operand(static_cast<uint16_t>(data.args.size()), node->line);
 }
 
 void Codegen::emit_method(ASTNode* node)
@@ -512,14 +525,14 @@ void Codegen::emit_var_decl(ASTNode* node)
 	// scope depth is 0, we need to emit the STORE_GLOBAL opcodes
 	if (env.get_scope_depth() == 0)
 	{
-		emit_opcode(Opcode::STORE_GLOBAL);
-		emit_operand(static_cast<uint16_t>(slot));
+		emit_opcode(Opcode::STORE_GLOBAL, node->line);
+		emit_operand(static_cast<uint16_t>(slot), node->line);
 		add_global_at_slot(data.identifier, Value(), slot);
 	}
 	else
 	{
-		emit_opcode(Opcode::STORE_LOCAL);
-		emit_operand(static_cast<uint16_t>(slot));
+		emit_opcode(Opcode::STORE_LOCAL, node->line);
+		emit_operand(static_cast<uint16_t>(slot), node->line);
 	}
 }
 
@@ -528,14 +541,15 @@ void Codegen::emit_implicit_null_return()
 	Opcode lastOpcode = currentFn->chunk->code.size() > 0 ? static_cast<Opcode>(currentFn->chunk->code.back()) : Opcode::EXIT;
 	if (lastOpcode != Opcode::RETURN)
 	{
+		int sourceLine = get_last_line_in_chunk();
 		if (!inConstructor)
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value());
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, sourceLine);
+			emit_operand(constIndex, sourceLine);
 		}
 
-		emit_opcode(Opcode::RETURN);
+		emit_opcode(Opcode::RETURN, sourceLine);
 	}
 }
 
@@ -571,6 +585,7 @@ void Codegen::patch_jump(uint16_t address)
 Function* Codegen::make_fn(const std::string& name, uint16_t argc, uint16_t localsCount)
 {
 	Function* fn = ctx->compilerArena.alloc<Function>();
+	std::cout << "make_fn ... making function with name: " << name << std::endl;
 	fn->name = name;
 	fn->argc = argc;
 	fn->locals = localsCount;
@@ -632,6 +647,12 @@ ClassDecl* Codegen::find_class_with_name(const std::string name)
 	return nullptr;
 }
 
+int Codegen::get_last_line_in_chunk()
+{
+	Chunk* currentChunk = get_current_chunk();
+	return currentChunk->lines.size() > 0 ? currentChunk->lines.back().line : 0;
+}
+
 int Codegen::alloc_slot(const std::string& identifier)
 {
 	int slot = env.add_entry(identifier);
@@ -657,40 +678,40 @@ void Codegen::compile_node(ASTNode* node)
 		case ASTKind::AST_INT_LITERAL:
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_INT, ValueData(std::in_place_type<int64_t>, std::get<ASTIntLiteral>(node->data).value)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, node->line);
+			emit_operand(constIndex, node->line);
 			break;
 		}
 
 		case ASTKind::AST_FLOAT_LITERAL:
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_FLOAT, ValueData(std::in_place_type<double>, std::get<ASTFloatLiteral>(node->data).value)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, node->line);
+			emit_operand(constIndex, node->line);
 			break;
 		}
 
 		case ASTKind::AST_STRING_LITERAL:
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, std::get<ASTStringLiteral>(node->data).value)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, node->line);
+			emit_operand(constIndex, node->line);
 			break;
 		}
 
 		case ASTKind::AST_BOOL_LITERAL:
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value(ValueKind::VALUE_BOOL, ValueData(std::in_place_type<bool>, std::get<ASTBoolLiteral>(node->data).value)));
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, node->line);
+			emit_operand(constIndex, node->line);
 			break;
 		}
 
 		case ASTKind::AST_NULL:
 		{
 			uint16_t constIndex = add_constant_to_chunk(Value());
-			emit_opcode(Opcode::LOAD_CONST);
-			emit_operand(constIndex);
+			emit_opcode(Opcode::LOAD_CONST, node->line);
+			emit_operand(constIndex, node->line);
 			break;
 		}
 
@@ -739,8 +760,8 @@ void Codegen::compile_node(ASTNode* node)
 			for (ASTNode* element : data.arr)
 				compile_node(element);
 
-			emit_opcode(Opcode::MAKE_ARR);
-			emit_operand(static_cast<uint16_t>(data.arr.size()));
+			emit_opcode(Opcode::MAKE_ARR, node->line);
+			emit_operand(static_cast<uint16_t>(data.arr.size()), node->line);
 			break;
 		}
 
@@ -756,7 +777,7 @@ void Codegen::compile_node(ASTNode* node)
 				break;
 			}
 
-			emit_load_for_entry(entry);
+			emit_load_for_entry(entry, node->line);
 			break;
 		}
 
@@ -775,7 +796,7 @@ void Codegen::compile_node(ASTNode* node)
 			{
 				emit_load_lhs(data.lhs);
 				compile_node(data.rhs);
-				emit_compound_assignment_op(data.op);
+				emit_compound_assignment_op(data.op, node->line);
 			}
 
 			// at the end of it all, all assignments need a store
@@ -790,7 +811,7 @@ void Codegen::compile_node(ASTNode* node)
 			if (data.returnExpr)
 				compile_node(data.returnExpr);
 
-			emit_opcode(Opcode::RETURN);
+			emit_opcode(Opcode::RETURN, node->line);
 
 			break;
 		}
@@ -802,24 +823,24 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTIf& data = std::get<ASTIf>(node->data);
 
 			compile_node(data.condition);
-			emit_opcode(Opcode::JMP_IF_FALSE);
-			uint16_t elseJump = emit_operand(0xFFFF);
-			emit_opcode(Opcode::POP);
+			emit_opcode(Opcode::JMP_IF_FALSE, node->line);
+			uint16_t elseJump = emit_operand(0xFFFF, node->line);
+			emit_opcode(Opcode::POP, node->line);
 			compile_scoped_node(data.trueBranch);
 
 			if (data.falseBranch)
 			{
-				emit_opcode(Opcode::JMP);
-				uint16_t endJump = emit_operand(0xFFFF);
+				emit_opcode(Opcode::JMP, node->line);
+				uint16_t endJump = emit_operand(0xFFFF, node->line);
 				patch_jump(elseJump);
-				emit_opcode(Opcode::POP);
+				emit_opcode(Opcode::POP, node->line);
 				compile_scoped_node(data.falseBranch);
 				patch_jump(endJump);
 			}
 			else
 			{
 				patch_jump(elseJump);
-				emit_opcode(Opcode::POP);
+				emit_opcode(Opcode::POP, node->line);
 			}
 			
 			break;
@@ -833,16 +854,16 @@ void Codegen::compile_node(ASTNode* node)
 			loopStack.push_back({ startAddress });
 
 			compile_node(data.condition);
-			emit_opcode(Opcode::JMP_IF_FALSE);
-			uint16_t endJump = emit_operand(0xFFFF);
-			emit_opcode(Opcode::POP);
+			emit_opcode(Opcode::JMP_IF_FALSE, node->line);
+			uint16_t endJump = emit_operand(0xFFFF, node->line);
+			emit_opcode(Opcode::POP, node->line);
 
 			compile_scoped_node(data.body);
-			emit_opcode(Opcode::JMP);
-			emit_operand(startAddress);
+			emit_opcode(Opcode::JMP, node->line);
+			emit_operand(startAddress, node->line);
 
 			patch_jump(endJump);
-			emit_opcode(Opcode::POP);
+			emit_opcode(Opcode::POP, node->line);
 
 			patch_loop_context(loopStack.back());
 			loopStack.pop_back();
@@ -863,9 +884,9 @@ void Codegen::compile_node(ASTNode* node)
 			IterContext iterCtx = compile_iterable_node(data.iterable, static_cast<uint16_t>(iteratorSlot));
 
 			// need to emit cond_check -> body -> increment
-			emit_iterable_condition_check(iterCtx);
+			emit_iterable_condition_check(iterCtx, node->line);
 			compile_node(data.body);
-			emit_iterable_increment(iterCtx);
+			emit_iterable_increment(iterCtx, node->line);
 
 			patch_loop_context(loopStack.back());
 			loopStack.pop_back();
@@ -910,18 +931,18 @@ void Codegen::compile_node(ASTNode* node)
 				// to short circuit <or> expressions, we need to jmp over the evaluation of rhs if lhs is truthy
 				// we don't know the address to jump to now, so we emit a placeholder address and backpatch it after 
 				// emitting code for the rhs
-				emit_opcode(Opcode::JMP_IF_TRUE);
-				uint16_t address = emit_operand(0xFFFF);
-				emit_opcode(Opcode::POP);
+				emit_opcode(Opcode::JMP_IF_TRUE, node->line);
+				uint16_t address = emit_operand(0xFFFF, node->line);
+				emit_opcode(Opcode::POP, node->line);
 				compile_node(data.rhs);
 				patch_jump(address);
 			}
 			else
 			{
 				// same basic logic for <and> expressions, except we jmp over the evaluation of rhs if rhs is falsey
-				emit_opcode(Opcode::JMP_IF_FALSE);
-				uint16_t address = emit_operand(0xFFFF);
-				emit_opcode(Opcode::POP);
+				emit_opcode(Opcode::JMP_IF_FALSE, node->line);
+				uint16_t address = emit_operand(0xFFFF, node->line);
+				emit_opcode(Opcode::POP, node->line);
 				compile_node(data.rhs);
 				patch_jump(address);
 			}
@@ -934,7 +955,7 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTBinaryExpr& data = std::get<ASTBinaryExpr>(node->data);
 			compile_node(data.lhs);
 			compile_node(data.rhs);
-			emit_binary_op(data.op);
+			emit_binary_op(data.op, node->line);
 			break;
 		}
 
@@ -942,7 +963,7 @@ void Codegen::compile_node(ASTNode* node)
 		{
 			const ASTUnaryExpr& data = std::get<ASTUnaryExpr>(node->data);
 			compile_node(data.expr);
-			emit_unary_op(data.op);
+			emit_unary_op(data.op, node->line);
 			break;
 		}
 
@@ -960,10 +981,10 @@ void Codegen::compile_node(ASTNode* node)
 					compile_node(arg);
 
 				uint16_t nameIndex = add_constant_to_chunk(Value(fieldAccess.field));
-				emit_opcode(Opcode::CALL_METHOD);
-				emit_operand(nameIndex);
+				emit_opcode(Opcode::CALL_METHOD, node->line);
+				emit_operand(nameIndex, node->line);
 				std::cout << "method call argc: " << data.arguments.size() << std::endl; 
-				emit_operand(static_cast<uint16_t>(data.arguments.size()));
+				emit_operand(static_cast<uint16_t>(data.arguments.size()), node->line);
 			}
 
 			// normal fn call
@@ -974,9 +995,8 @@ void Codegen::compile_node(ASTNode* node)
 				for (ASTNode* arg : data.arguments)
 					compile_node(arg);
 
-				emit_opcode(Opcode::CALL_FN);
-				emit_operand(data.arguments.size());
-
+				emit_opcode(Opcode::CALL_FN, node->line);
+				emit_operand(data.arguments.size(), node->line);
 			}
 
 			break;
@@ -987,7 +1007,7 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTArrayAccess& data = std::get<ASTArrayAccess>(node->data);
 			compile_node(data.arr);
 			compile_node(data.index);
-			emit_opcode(Opcode::ARRAY_LOAD);
+			emit_opcode(Opcode::ARRAY_LOAD, node->line);
 			break;
 		}
 
@@ -997,31 +1017,31 @@ void Codegen::compile_node(ASTNode* node)
 
 			compile_node(data.object);
 			uint16_t fieldIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, data.field)));
-			emit_opcode(Opcode::LOAD_FIELD);
-			emit_operand(fieldIndex);
+			emit_opcode(Opcode::LOAD_FIELD, node->line);
+			emit_operand(fieldIndex, node->line);
 
 			break;
 		}
 
 		case ASTKind::AST_BREAK:
 		{
-			emit_opcode(Opcode::JMP);
-			loopStack.back().breakJumps.push_back(emit_operand(0xFFFF));
+			emit_opcode(Opcode::JMP, node->line);
+			loopStack.back().breakJumps.push_back(emit_operand(0xFFFF, node->line));
 			break;
 		}
 
 		case ASTKind::AST_CONTINUE:
 		{
-			emit_opcode(Opcode::JMP);
-			loopStack.back().continueJumps.push_back(emit_operand(0xFFFF));
+			emit_opcode(Opcode::JMP, node->line);
+			loopStack.back().continueJumps.push_back(emit_operand(0xFFFF, node->line));
 			break;
 		}
 
 		case ASTKind::AST_THIS:
 		{
 			// the this implicit parameter is always placed into slot 0 of a methods call frame by the vm
-			emit_opcode(Opcode::LOAD_LOCAL);
-			emit_operand(0);
+			emit_opcode(Opcode::LOAD_LOCAL, node->line);
+			emit_operand(0, node->line);
 			break;
 		}
 
@@ -1029,7 +1049,7 @@ void Codegen::compile_node(ASTNode* node)
 		{
 			const ASTExprStmt& data = std::get<ASTExprStmt>(node->data);
 			compile_node(data.expr);
-			emit_opcode(Opcode::POP);
+			emit_opcode(Opcode::POP, node->line);
 			break;
 		}
 
@@ -1075,26 +1095,24 @@ IterContext Codegen::compile_iterable_node(ASTNode* node, uint16_t iteratorSlot)
 
 		// set up the iterator
 		compile_node(data.start);
-		emit_opcode(Opcode::STORE_LOCAL);
-		emit_operand(iteratorSlot);
+		emit_opcode(Opcode::STORE_LOCAL, node->line);
+		emit_operand(iteratorSlot, node->line);
 
 		// eval end once and store in hidden compiler variable
-		std::cout << "$range_iter_end" + std::to_string(scopeDepth) << std::endl;
 		int endSlot = alloc_slot("$range_iter_end" + std::to_string(scopeDepth));
 		compile_node(data.end);
-		emit_opcode(Opcode::STORE_LOCAL);
-		emit_operand(endSlot);
+		emit_opcode(Opcode::STORE_LOCAL, node->line);
+		emit_operand(endSlot, node->line);
 
 		int stepSlot = -1;
 
 		// check to see if a step is included in the range since it's not required
 		if (data.step)
 		{
-			std::cout << "$range_iter_step" + std::to_string(scopeDepth) << std::endl;
 			stepSlot = alloc_slot("$range_iter_step" + std::to_string(scopeDepth));
 			compile_node(data.step);
-			emit_opcode(Opcode::STORE_LOCAL);
-			emit_operand(stepSlot);
+			emit_opcode(Opcode::STORE_LOCAL, node->line);
+			emit_operand(stepSlot, node->line);
 		}
 
 		// fill range in range iter context fields

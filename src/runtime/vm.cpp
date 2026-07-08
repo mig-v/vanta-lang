@@ -16,6 +16,7 @@ const std::unordered_map<std::string, NativeMethod> VM::arrayMethods =
 VM::VM()
 {
 	this->stack.reserve(256);
+	this->hasErrors = false;
 }
 
 void VM::initialize_module(Module* module)
@@ -1144,7 +1145,22 @@ void VM::dispatch_loop()
 
 void VM::runtime_error(const std::string& errorMsg)
 {
-	std::cout << "[Runtime Error] " << errorMsg << std::endl;
+	CallFrame& frame = callStack.back();
+	int line = frame.fn->chunk->get_line_with_offset(frame.ip - frame.fn->chunk->code.data());
+	std::cout << "[Runtime Error] line " << line << ": file \"" << frame.hostModule->name << ".va\" " << errorMsg << "\n\n";
+	print_stack_trace();
+	this->hasErrors = true;
+}
+
+void VM::print_stack_trace()
+{
+	std::cout << "[Stack Trace]\n";
+	for (auto it = callStack.rbegin(); it != callStack.rend(); it++)
+	{
+		CallFrame& frame = *it;
+		int line = frame.fn->chunk->get_line_with_offset(frame.ip - frame.fn->chunk->code.data());
+		std::cout << "line " << line << ": file \"" << frame.hostModule->name << ".va\" in " << frame.fn->name << "()" << std::endl;
+	}
 }
 
 void VM::cleanup_global_call_frame()

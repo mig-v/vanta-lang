@@ -37,6 +37,7 @@ add_executable(vanta-lang
                src/codegen/environment.h
                src/codegen/environment.cpp
                src/codegen/chunk.h
+               src/codegen/chunk.cpp
 
                src/runtime/runtime.h
                src/runtime/runtime.cpp

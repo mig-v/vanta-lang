@@ -17,11 +17,15 @@ void Runtime::execute(std::vector<CompilationUnit>& compilationUnits)
 
 	// main is guaranteed to be the last compilation unit in the vector
 	CompilationUnit& main = compilationUnits.back();
+
 	// recursively initialize all dependencies of the program
 	for (CompilationUnit& dependency : main.imports)
 	{
 		if (!dependency.initialized)
-			execute_compilation_unit(dependency, compilationUnits);
+		{
+			if (!execute_compilation_unit(dependency, compilationUnits))
+				return;
+		}
 	}
 
 	// patch all of mains imported modules after they're initialized
@@ -36,7 +40,7 @@ void Runtime::execute(std::vector<CompilationUnit>& compilationUnits)
 	vm->execute_module(main.runtimeModule);
 }
 
-void Runtime::execute_compilation_unit(CompilationUnit& unit, std::vector<CompilationUnit>& allUnits)
+bool Runtime::execute_compilation_unit(CompilationUnit& unit, std::vector<CompilationUnit>& allUnits)
 {
 	// for each compilation unit, recurse into each of its imported dependencies and execute them first
 	for (CompilationUnit& dependency : unit.imports)
@@ -44,7 +48,8 @@ void Runtime::execute_compilation_unit(CompilationUnit& unit, std::vector<Compil
 		if (!dependency.initialized)
 		{
 			// recurse into the deepest dependency
-			execute_compilation_unit(dependency, allUnits);
+			if (!execute_compilation_unit(dependency, allUnits))
+				return false;
 
 			// run the module, this fills the modules globals table with the correct state of the program
 			uint16_t slot = unit.module->moduleMap[dependency.module->name];
@@ -55,4 +60,6 @@ void Runtime::execute_compilation_unit(CompilationUnit& unit, std::vector<Compil
 	unit.runtimeModule = vm->create_runtime_module(unit.module);
 	vm->initialize_module(unit.runtimeModule);
 	unit.initialized = true;
+
+	return !vm->has_errors();
 }
