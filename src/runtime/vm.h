@@ -44,7 +44,7 @@ private:
 	void cleanup_args(uint16_t argc);
 	void dump_stack();
 
-	bool dispatch_array_method(Value& object, const std::string& methodName, uint16_t argc);
+	bool dispatch_builtin_method(Value& object, const std::string& methodName, uint16_t argc, const std::unordered_map<std::string, NativeMethod> methodMap);
 
 	// debug function declarations
 	#ifdef _DEBUG
@@ -57,4 +57,5 @@ private:
 	bool hasErrors;
 
 	static const std::unordered_map<std::string, NativeMethod> arrayMethods;
+	static const std::unordered_map<std::string, NativeMethod> fileMethods;
 };

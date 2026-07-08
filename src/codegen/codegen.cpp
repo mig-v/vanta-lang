@@ -89,6 +89,7 @@ void Codegen::register_built_ins()
 {
 	register_built_in_fn("print", Value(Builtins::print));
 	register_built_in_fn("len", Value(Builtins::len));
+	register_built_in_fn("open_file", Value(Builtins::open_file));
 }
 
 void Codegen::register_built_in_fn(const std::string& name, const Value& nativeFn)
@@ -983,7 +984,6 @@ void Codegen::compile_node(ASTNode* node)
 				uint16_t nameIndex = add_constant_to_chunk(Value(fieldAccess.field));
 				emit_opcode(Opcode::CALL_METHOD, node->line);
 				emit_operand(nameIndex, node->line);
-				std::cout << "method call argc: " << data.arguments.size() << std::endl; 
 				emit_operand(static_cast<uint16_t>(data.arguments.size()), node->line);
 			}
 

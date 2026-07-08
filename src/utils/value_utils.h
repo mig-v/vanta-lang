@@ -9,4 +9,5 @@ namespace Utils
 	double to_double(const Value& val);
 	int64_t to_int(const Value& val);
 	std::string to_string(const Value& val);
+	std::string type_name(const Value& val);
 }

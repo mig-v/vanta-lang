@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <fstream>
 
 // forward declare chunk since Functions need to store their relevant chunks of bytecode which is defined in chunk.h
 struct Chunk;
@@ -12,11 +13,14 @@ struct ClassDecl;
 struct Instance;
 struct Value;
 struct ArgList;
+struct GarbageCollector;
 
-struct NativeFnError
+struct NativeFnCtx
 {
-	NativeFnError() : hasError(false) {}
+	NativeFnCtx(GarbageCollector* gc) : hasError(false), gc(gc) {}
 
+	// some native functions need to allocate stuff like Files, so they need the VM's GC injected via this context struct
+	GarbageCollector* gc;
 	std::string errorMessage;
 	bool hasError;
 
@@ -29,6 +33,8 @@ struct NativeFnError
 
 struct GCObject
 {
+	virtual ~GCObject() = default;
+
 	bool marked = false;
 	GCObject* next = nullptr;
 };
@@ -56,9 +62,30 @@ struct Module : GCObject
 	Function* root;
 };
 
+struct Instance : GCObject
+{
+	ClassDecl* classDecl;
+	Module* hostModule;
+	std::vector<Value> fields;
+};
+
+struct File : GCObject
+{
+	std::fstream file;
+	std::ios::openmode mode;
+	std::string path;
+	bool closed;
+
+	~File() override
+	{
+		if (!closed && file.is_open())
+			file.close();
+	}
+};
+
 // native functions are just function pointers to raw c++ functions that take in an arg list and return a value
-using NativeFn = Value(*)(ArgList args, NativeFnError& ctx);
-using NativeMethod = Value(*)(Value& object, ArgList args, NativeFnError& ctx);
+using NativeFn = Value(*)(ArgList args, NativeFnCtx& ctx);
+using NativeMethod = Value(*)(Value& object, ArgList args, NativeFnCtx& ctx);
 
 using ValueData = std::variant
 <
@@ -71,6 +98,7 @@ using ValueData = std::variant
 	Instance*,
 	Array*,
 	Module*,
+	File*,
 	NativeFn
 >;
 
@@ -85,6 +113,7 @@ enum class ValueKind
 	VALUE_FN,
 	VALUE_INSTANCE,
 	VALUE_MODULE,
+	VALUE_FILE,
 	VALUE_NATIVE_FN
 };
 
@@ -101,18 +130,12 @@ struct Value
 	Value(Instance* val) : kind(ValueKind::VALUE_INSTANCE), data(std::in_place_type<Instance*>, val) {}
 	Value(Array* val) : kind(ValueKind::VALUE_ARR), data(std::in_place_type<Array*>, val) {}
 	Value(Module* val) : kind(ValueKind::VALUE_MODULE), data(std::in_place_type<Module*>, val) {}
-	
+	Value(File* val) : kind(ValueKind::VALUE_FILE), data(std::in_place_type<File*>, val) {}
+
 	Value(ValueKind kind, ValueData data) : kind(kind), data(data) {}
 
 	ValueKind kind;
 	ValueData data;
-};
-
-struct Instance : GCObject
-{
-	ClassDecl* classDecl;
-	Module* hostModule;
-	std::vector<Value> fields;
 };
 
 struct ArgList

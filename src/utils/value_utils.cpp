@@ -40,7 +40,6 @@ namespace Utils
 
 	std::string to_string(const Value& val)
 	{
-
 		switch (val.kind)
 		{
 			case ValueKind::VALUE_INT:       return std::to_string(std::get<int64_t>(val.data));
@@ -72,6 +71,22 @@ namespace Utils
 				result += "]";
 				return result;
 			}
+		}
+	}
+
+	std::string type_name(const Value& val)
+	{
+		switch (val.kind)
+		{
+			case ValueKind::VALUE_INT:       return "<int>";
+			case ValueKind::VALUE_FLOAT:     return "<float>";
+			case ValueKind::VALUE_BOOL:      return "<bool>";
+			case ValueKind::VALUE_STRING:    return "<string>";
+			case ValueKind::VALUE_FN:        return "<fn>";
+			case ValueKind::VALUE_INSTANCE:  return "<instance>";
+			case ValueKind::VALUE_NULL:      return "<null>";
+			case ValueKind::VALUE_NATIVE_FN: return "<native_fn>";
+			case ValueKind::VALUE_ARR:       return "<array>";
 		}
 	}
 }

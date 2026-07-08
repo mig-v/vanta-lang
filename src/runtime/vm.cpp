@@ -13,6 +13,14 @@ const std::unordered_map<std::string, NativeMethod> VM::arrayMethods =
 	{ "pop", Builtins::array_pop }
 };
 
+const std::unordered_map<std::string, NativeMethod> VM::fileMethods =
+{
+	{ "close", Builtins::file_close },
+	{ "write", Builtins::file_write },
+	{ "write_line", Builtins::file_write_line }
+};
+
+
 VM::VM()
 {
 	this->stack.reserve(256);
@@ -141,17 +149,17 @@ void VM::cleanup_args(uint16_t argc)
 	}
 }
 
-bool VM::dispatch_array_method(Value& object, const std::string& methodName, uint16_t argc)
+bool VM::dispatch_builtin_method(Value& object, const std::string& methodName, uint16_t argc, const std::unordered_map<std::string, NativeMethod> methodMap)
 {
-	auto& method = arrayMethods.find(methodName);
+	auto& method = methodMap.find(methodName);
 
-	if (method == arrayMethods.end())
+	if (method == methodMap.end())
 	{
-		runtime_error("no method \"" + methodName + "\" exists for array");
+		runtime_error("no method \"" + methodName + "\" exists for object");
 		return true;
 	}
 
-	NativeFnError nativeFnCtx;
+	NativeFnCtx nativeFnCtx(&this->gc);
 	Value* argsPtr = argc > 0 ? &stack[stack.size() - argc] : nullptr;
 	ArgList argList(argsPtr, argc);
 	Value result = method->second(object, argList, nativeFnCtx);
@@ -318,7 +326,7 @@ void VM::dispatch_loop()
 				else if (fn.kind == ValueKind::VALUE_NATIVE_FN)
 				{
 					// set up the error ctx and arg list, then call the native function
-					NativeFnError nativeFnCtx;
+					NativeFnCtx nativeFnCtx(&this->gc);
 					Value* argsPtr = argc > 0 ? &stack[stack.size() - argc] : nullptr;
 					ArgList argList(argsPtr, argc);
 					Value result = std::get<NativeFn>(fn.data)(argList, nativeFnCtx);
@@ -370,70 +378,87 @@ void VM::dispatch_loop()
 				// need to get the object associated with this method
 				Value object = stack[stack.size() - argc - 1];
 
-				if (object.kind == ValueKind::VALUE_INSTANCE)
+				switch (object.kind)
 				{
-					Instance* instance = std::get<Instance*>(object.data);
-
-					// then need to verify the instance has a method named 'methodName'
-					auto& method = instance->classDecl->methods.find(methodName);
-					if (method == instance->classDecl->methods.end())
+					case ValueKind::VALUE_INSTANCE:
 					{
-						runtime_error("no class method \"" + methodName + "\" exists for object");
-						return;
+						Instance* instance = std::get<Instance*>(object.data);
+
+						// then need to verify the instance has a method named 'methodName'
+						auto& method = instance->classDecl->methods.find(methodName);
+						if (method == instance->classDecl->methods.end())
+						{
+							runtime_error("no class method \"" + methodName + "\" exists for object");
+							return;
+						}
+
+						// then verify arg counts match
+						if (method->second->argc != argc)
+						{
+							runtime_error("class method \"" + methodName + "\" expects " + std::to_string(method->second->argc) + " args but got " + std::to_string(argc));
+							return;
+						}
+
+						// then push call frame
+						if (instance->classDecl->name == methodName)
+							push_call_frame(method->second, CallFrameContext::Constructor, instance->hostModule);
+						else
+							push_call_frame(method->second, CallFrameContext::Method, instance->hostModule);
+
+						break;
 					}
 
-					// then verify arg counts match
-					if (method->second->argc != argc)
+					case ValueKind::VALUE_ARR:
 					{
-						runtime_error("class method \"" + methodName + "\" expects " + std::to_string(method->second->argc) + " args but got " + std::to_string(argc));
-						return;
+						// dispatch functions returns true if there was an error
+						if (dispatch_builtin_method(object, methodName, argc, arrayMethods))
+							return;
+
+						break;
 					}
 
-					// then push call frame
-					if (instance->classDecl->name == methodName)
-						push_call_frame(method->second, CallFrameContext::Constructor, instance->hostModule);
-					else
-						push_call_frame(method->second, CallFrameContext::Method, instance->hostModule);
-				}
-				else if (object.kind == ValueKind::VALUE_ARR)
-				{
-					// dispatch functions returns true if there was an error
-					if (dispatch_array_method(object, methodName, argc))
-						return;
-				}
-				
-				// handle any module function calls like math.sin()
-				else if (object.kind == ValueKind::VALUE_MODULE)
-				{
-					Module* runtimeModule = std::get<Module*>(object.data);
-					auto& moduleFn = runtimeModule->exports.find(methodName);
-
-					if (moduleFn == runtimeModule->exports.end())
+					case ValueKind::VALUE_FILE:
 					{
-						runtime_error("no fn \"" + methodName + "\" found in module \"" + runtimeModule->name + "\"");
-						return;
+						if (dispatch_builtin_method(object, methodName, argc, fileMethods))
+							return;
+
+						break;
 					}
 
-					Value exportedSymbol = runtimeModule->globals[moduleFn->second];
-					if (exportedSymbol.kind != ValueKind::VALUE_FN)
+					// handle any module function calls like math.sin()
+					case ValueKind::VALUE_MODULE:
 					{
-						runtime_error("\"" + methodName + "\" not callable from module \"" + runtimeModule->name + "\"");
+						Module* runtimeModule = std::get<Module*>(object.data);
+						auto& moduleFn = runtimeModule->exports.find(methodName);
+
+						if (moduleFn == runtimeModule->exports.end())
+						{
+							runtime_error("no fn \"" + methodName + "\" found in module \"" + runtimeModule->name + "\"");
+							return;
+						}
+
+						Value exportedSymbol = runtimeModule->globals[moduleFn->second];
+						if (exportedSymbol.kind != ValueKind::VALUE_FN)
+						{
+							runtime_error("\"" + methodName + "\" not callable from module \"" + runtimeModule->name + "\"");
+							return;
+						}
+
+						Function* fn = std::get<Function*>(exportedSymbol.data);
+						if (argc != fn->argc)
+						{
+							runtime_error("module fn\"" + methodName + "\" expects " + std::to_string(fn->argc) + " args but got " + std::to_string(argc));
+							return;
+						}
+
+						push_call_frame(fn, CallFrameContext::Fn, runtimeModule);
+						break;
+					}
+					default:
+					{
+						runtime_error("cannot call method on non-object");
 						return;
 					}
-
-					Function* fn = std::get<Function*>(exportedSymbol.data);
-					if (argc != fn->argc)
-					{
-						runtime_error("module fn\"" + methodName + "\" expects " + std::to_string(fn->argc) + " args but got " + std::to_string(argc));
-						return;
-					}
-
-					push_call_frame(fn, CallFrameContext::Fn, runtimeModule);
-				}
-				else
-				{
-					runtime_error("cannot call method on non-object");
-					return;
 				}
 
 				break;
