@@ -12,4 +12,8 @@ x >>= 10;
 
 # test right associativity of assignment
 var y = 100;
-x = y = 0;
+
+# statements like this are now disallowed, to allow them back in, a new parser production needs
+# to be added. they are now disallowed since assignment is no longer recursive to disallow things
+# like foo(x = 10); from being allowed, x = y = 0 not being allowed was a consequence of that
+#x = y = 0;

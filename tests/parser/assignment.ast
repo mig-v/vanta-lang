@@ -68,14 +68,3 @@
     identifier: y
     initializer: <AST_INT_LITERAL> { value: 100 }
 }
-<AST_ASSIGNMENT>
-{
-    operator: =
-    lhs: <AST_IDENTIFIER> { identifier: x }
-    rhs: <AST_ASSIGNMENT>
-    {
-        operator: =
-        lhs: <AST_IDENTIFIER> { identifier: y }
-        rhs: <AST_INT_LITERAL> { value: 0 }
-    }
-}
