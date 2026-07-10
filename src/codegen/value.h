@@ -138,6 +138,8 @@ struct Value
 	ValueData data;
 };
 
+bool operator==(const Value& lhs, const Value& rhs);
+
 struct ArgList
 {
 	ArgList(Value* args, uint16_t argc) : args(args), argc(argc) {}
@@ -150,3 +152,12 @@ struct ArgList
 	inline Value& operator[](uint16_t i) { return args[i]; }
 	inline uint16_t size() const { return argc; }
 };
+
+namespace std
+{
+	template<>
+	struct hash<Value>
+	{
+		size_t operator()(const Value& val) const;
+	};
+}
