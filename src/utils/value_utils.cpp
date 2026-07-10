@@ -71,6 +71,27 @@ namespace Utils
 				result += "]";
 				return result;
 			}
+			case ValueKind::VALUE_FILE:
+			{
+				File* filePtr = std::get<File*>(val.data);
+				return filePtr->path;
+			}
+			case ValueKind::VALUE_DICT:
+			{
+				std::string result = "{\n";
+				Dict* dictPtr = std::get<Dict*>(val.data);
+
+				for (const auto& pair : dictPtr->dict)
+				{
+					result += to_string(pair.first);
+					result += " : ";
+					result += to_string(pair.second);
+					result += "\n";
+				}
+
+				result += "}";
+				return result;
+			}
 		}
 	}
 
@@ -87,6 +108,8 @@ namespace Utils
 			case ValueKind::VALUE_NULL:      return "<null>";
 			case ValueKind::VALUE_NATIVE_FN: return "<native_fn>";
 			case ValueKind::VALUE_ARR:       return "<array>";
+			case ValueKind::VALUE_FILE:      return "<file>";
+			case ValueKind::VALUE_DICT:      return "<dict>";
 		}
 	}
 }
