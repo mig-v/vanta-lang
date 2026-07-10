@@ -149,7 +149,7 @@ void Codegen::emit_store_lhs(ASTNode* lhs)
 		const ASTArrayAccess& data = std::get<ASTArrayAccess>(lhs->data);
 		compile_node(data.arr);
 		compile_node(data.index);
-		emit_opcode(Opcode::ARRAY_STORE, lhs->line);
+		emit_opcode(Opcode::INDEX_STORE, lhs->line);
 	}
 
 	// writing to a field, foo.x = val
@@ -183,7 +183,7 @@ void Codegen::emit_load_lhs(ASTNode* lhs)
 		const ASTArrayAccess& data = std::get<ASTArrayAccess>(lhs->data);
 		compile_node(data.arr);
 		compile_node(data.index);
-		emit_opcode(Opcode::ARRAY_LOAD, lhs->line);
+		emit_opcode(Opcode::INDEX_LOAD, lhs->line);
 	}
 
 	// load the value of foo.x by pushing it onto the stack
@@ -766,6 +766,21 @@ void Codegen::compile_node(ASTNode* node)
 			break;
 		}
 
+		case ASTKind::AST_DICT:
+		{
+			const ASTDict& data = std::get<ASTDict>(node->data);
+
+			for (size_t i = 0; i < data.keys.size(); i++)
+			{
+				compile_node(data.keys[i]);
+				compile_node(data.vals[i]);
+			}
+
+			emit_opcode(Opcode::MAKE_DICT, node->line);
+			emit_operand(static_cast<uint16_t>(data.keys.size()), node->line);
+			break;
+		}
+
 		case ASTKind::AST_IDENTIFIER:
 		{
 			const ASTIdentifier& data = std::get<ASTIdentifier>(node->data);
@@ -1007,7 +1022,7 @@ void Codegen::compile_node(ASTNode* node)
 			const ASTArrayAccess& data = std::get<ASTArrayAccess>(node->data);
 			compile_node(data.arr);
 			compile_node(data.index);
-			emit_opcode(Opcode::ARRAY_LOAD, node->line);
+			emit_opcode(Opcode::INDEX_LOAD, node->line);
 			break;
 		}
 

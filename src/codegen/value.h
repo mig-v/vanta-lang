@@ -15,6 +15,15 @@ struct Value;
 struct ArgList;
 struct GarbageCollector;
 
+namespace std
+{
+	template<>
+	struct hash<Value>
+	{
+		size_t operator()(const Value& val) const;
+	};
+}
+
 struct NativeFnCtx
 {
 	NativeFnCtx(GarbageCollector* gc) : hasError(false), gc(gc) {}
@@ -50,6 +59,11 @@ struct Function
 struct Array : GCObject
 {
 	std::vector<Value> arr;
+};
+
+struct Dict : GCObject
+{
+	std::unordered_map<Value, Value> dict;
 };
 
 struct Module : GCObject
@@ -99,6 +113,7 @@ using ValueData = std::variant
 	Array*,
 	Module*,
 	File*,
+	Dict*,
 	NativeFn
 >;
 
@@ -110,6 +125,7 @@ enum class ValueKind
 	VALUE_BOOL,
 	VALUE_NULL,
 	VALUE_ARR,
+	VALUE_DICT,
 	VALUE_FN,
 	VALUE_INSTANCE,
 	VALUE_MODULE,
@@ -129,6 +145,7 @@ struct Value
 	Value(NativeFn val) : kind(ValueKind::VALUE_NATIVE_FN), data(std::in_place_type<NativeFn>, val) {}
 	Value(Instance* val) : kind(ValueKind::VALUE_INSTANCE), data(std::in_place_type<Instance*>, val) {}
 	Value(Array* val) : kind(ValueKind::VALUE_ARR), data(std::in_place_type<Array*>, val) {}
+	Value(Dict* val) : kind(ValueKind::VALUE_DICT), data(std::in_place_type<Dict*>, val) {}
 	Value(Module* val) : kind(ValueKind::VALUE_MODULE), data(std::in_place_type<Module*>, val) {}
 	Value(File* val) : kind(ValueKind::VALUE_FILE), data(std::in_place_type<File*>, val) {}
 
@@ -152,12 +169,3 @@ struct ArgList
 	inline Value& operator[](uint16_t i) { return args[i]; }
 	inline uint16_t size() const { return argc; }
 };
-
-namespace std
-{
-	template<>
-	struct hash<Value>
-	{
-		size_t operator()(const Value& val) const;
-	};
-}

@@ -56,9 +56,9 @@ enum class Opcode : uint8_t
 	// 2 operands, 2 byte <nameIndex>, and 2 byte <argc>
 	CALL_METHOD,
 
-	// no operands, arr and index are on the stack
-	ARRAY_LOAD,
-	ARRAY_STORE,
+	// no operands, object and index are on the stack, object can be any indexable data structure such as array, dictionary, set, etc.
+	INDEX_LOAD,
+	INDEX_STORE,
 
 	// 2 byte operand <fieldIndex>, used to index into the chunks constant table to get the field name, which is then used to 
 	// get the slot for the field via the instances class decl reference field table
@@ -67,6 +67,9 @@ enum class Opcode : uint8_t
 
 	// 2 byte operand <element_count>, pop off number of elements from the stack and create a new array object
 	MAKE_ARR,
+
+	// 2 byte operand <pair_count>, pop off 2n elements from the stack and create new dict object
+	MAKE_DICT,
 
 	// 2 byte operand <class_index>, store module.classes[class_index] in newly created instance and push instance on the stack
 	MAKE_INSTANCE,
