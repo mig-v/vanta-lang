@@ -34,7 +34,7 @@ public:
 		return obj;
 	}
 private:
-	void mark_value(Value& val);
+	void mark_value(const Value& val);
 	void mark_object(GCObject* object);
 	void sweep();
 

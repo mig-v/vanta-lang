@@ -46,6 +46,11 @@ private:
 
 	bool dispatch_builtin_method(Value& object, const std::string& methodName, uint16_t argc, const std::unordered_map<std::string, NativeMethod> methodMap);
 
+	void array_load(Array* arrPtr, const Value& index);
+	void array_store(Array* arrPtr, const Value& index, const Value& val);
+	void dict_load(Dict* dictPtr, const Value& key);
+	void dict_store(Dict* dictPtr, const Value& key, const Value& val);
+
 	// debug function declarations
 	#ifdef _DEBUG
 	void assert_stack_invariant(const CallFrame& frame, const std::string& fnIdentifier, const std::string& ctx);

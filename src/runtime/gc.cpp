@@ -50,26 +50,60 @@ void GarbageCollector::collect(std::vector<Value>& stack, std::vector<Value>& gl
 	heapThreshold = std::max(DEFAULT_THRESHOLD, heapSize * 2);
 }
 
-void GarbageCollector::mark_value(Value& val)
+void GarbageCollector::mark_value(const Value& val)
 {
 	// check the kind of val, and mark any heap objects, we also need to try and mark any values that they themselves hold
 	// for example, an array needs to mark any heap objects it holds
 	// primitives dont need any handling since they live on the stack
-	if (val.kind == ValueKind::VALUE_INSTANCE)
+	switch (val.kind)
 	{
-		Instance* instance = std::get<Instance*>(val.data);
-		mark_object(instance);
+		case ValueKind::VALUE_INSTANCE:
+		{
+			Instance* instance = std::get<Instance*>(val.data);
+			if (instance->marked) break;
 
-		for (Value& field : instance->fields)
-			mark_value(field);
-	}
-	else if (val.kind == ValueKind::VALUE_ARR)
-	{
-		Array* arr = std::get<Array*>(val.data);
-		mark_object(arr);
+			mark_object(instance);
 
-		for (Value& element : arr->arr)
-			mark_value(element);
+			for (Value& field : instance->fields)
+				mark_value(field);
+
+			break;
+		}
+		case ValueKind::VALUE_ARR:
+		{
+			Array* arr = std::get<Array*>(val.data);
+			if (arr->marked) break;
+
+			mark_object(arr);
+
+			for (Value& element : arr->arr)
+				mark_value(element);
+
+			break;
+		}
+		case ValueKind::VALUE_DICT:
+		{
+			Dict* dict = std::get<Dict*>(val.data);
+			if (dict->marked) break;
+
+			mark_object(dict);
+
+			for (auto& pair : dict->dict)
+			{
+				mark_value(pair.first);
+				mark_value(pair.second);
+			}
+
+			break;
+		}
+		case ValueKind::VALUE_FILE:
+		{
+			File* file = std::get<File*>(val.data);
+			if (file->marked) break;
+
+			mark_object(file);
+			break;
+		}
 	}
 }
 

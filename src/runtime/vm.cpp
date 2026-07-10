@@ -177,9 +177,64 @@ bool VM::dispatch_builtin_method(Value& object, const std::string& methodName, u
 	return nativeFnCtx.hasError;
 }
 
+void VM::array_load(Array* arrPtr, const Value& index)
+{
+	// only allow integers to be used as an index
+	if (index.kind != ValueKind::VALUE_INT)
+	{
+		runtime_error("cannot index with non-integer type");
+		return;
+	}
+
+	int64_t indexVal = std::get<int64_t>(index.data);
+	if (indexVal >= arrPtr->arr.size())
+	{
+		runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
+		return;
+	}
+
+	stack.push_back(arrPtr->arr[indexVal]);
+}
+
+void VM::array_store(Array* arrPtr, const Value& index, const Value& val)
+{
+	if (index.kind != ValueKind::VALUE_INT)
+	{
+		runtime_error("cannot index with non-integer type");
+		return;
+	}
+
+	int64_t indexVal = std::get<int64_t>(index.data);
+	if (indexVal >= arrPtr->arr.size())
+	{
+		runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
+		return;
+	}
+
+	arrPtr->arr[indexVal] = val;
+}
+
+void VM::dict_load(Dict* dictPtr, const Value& key)
+{
+	// if the key is not found in the dictionary, a runtime error occurs
+	const auto& val = dictPtr->dict.find(key);
+	if (val == dictPtr->dict.end())
+	{
+		runtime_error("key not found in dict");
+		return;
+	}
+
+	stack.push_back(val->second);
+}
+
+void VM::dict_store(Dict* dictPtr, const Value& key, const Value& val)
+{
+	dictPtr->dict[key] = val;
+}
+
 void VM::dispatch_loop()
 {
-	while (true)
+	while (!this->hasErrors)
 	{	
 		CallFrame& frame = callStack.back();
 
@@ -1005,78 +1060,72 @@ void VM::dispatch_loop()
 				break;
 			}
 
-			// no operands, arr and index are on the stack, need to push the arr[index] onto the stack
-			case Opcode::ARRAY_LOAD:
+			// 2 byte operand <pair_count>, pop off 2n elements from the stack and create new dict object
+			case Opcode::MAKE_DICT:
 			{
-				// arr object pushed first, then index
+				uint16_t pairCount = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
+
+				Dict* dictObj = gc.alloc_object<Dict>();
+
+				// pairs are pushed as key : val, key : val, etc. so we need to pop in opposite order val, key
+				for (int i = 0; i < pairCount; i++)
+				{
+					Value val = stack.back();
+					stack.pop_back();
+
+					Value key = stack.back();
+					stack.pop_back();
+
+					dictObj->dict[key] = val;
+				}
+
+				stack.emplace_back(dictObj);
+				frame.ip += 2;
+				break;
+			}
+
+			// no operands, obj and index are on the stack, need to push the obj[index] onto the stack
+			case Opcode::INDEX_LOAD:
+			{
+				// obj pushed first, then index
 				Value index = stack.back();
 				stack.pop_back();
 
-				Value arr = stack.back();
+				Value obj = stack.back();
 				stack.pop_back();
 
-				// only allow integers to be used as an index
-				if (index.kind != ValueKind::VALUE_INT)
-				{
-					runtime_error("cannot index with non-integer type");
-					return;
-				}
-
-				if (arr.kind == ValueKind::VALUE_ARR)
-				{
-					Array* ptr = std::get<Array*>(arr.data);
-					int64_t indexVal = std::get<int64_t>(index.data);
-					if (indexVal >= ptr->arr.size())
-					{
-						runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
-						return;
-					}
-
-					stack.push_back(ptr->arr[indexVal]);
-
-				}
+				if (obj.kind == ValueKind::VALUE_ARR)
+					array_load(std::get<Array*>(obj.data), index);
+				else if (obj.kind == ValueKind::VALUE_DICT)
+					dict_load(std::get<Dict*>(obj.data), index);
 				else
 				{
-					runtime_error("cannot index into non-indexable object, only arrays supported");
+					runtime_error("cannot index into non-indexable object");
 					return;
 				}
 	
 				break;
 			}
 
-			// no operands, value to store, arr, and index, are on the stack in that order
-			case Opcode::ARRAY_STORE:
+			// no operands, value to store, obj, and index, are on the stack in that order
+			case Opcode::INDEX_STORE:
 			{
 				Value index = stack.back();
 				stack.pop_back();
 
-				Value arr = stack.back();
+				Value obj = stack.back();
 				stack.pop_back();
 
 				Value val = stack.back();
 				stack.pop_back();
 
-				if (index.kind != ValueKind::VALUE_INT)
-				{
-					runtime_error("cannot index with non-integer type");
-					return;
-				}
-
-				if (arr.kind == ValueKind::VALUE_ARR)
-				{
-					Array* ptr = std::get<Array*>(arr.data);
-					int64_t indexVal = std::get<int64_t>(index.data);
-					if (indexVal >= ptr->arr.size())
-					{
-						runtime_error("out of range index: " + std::to_string(indexVal) + " on array");
-						return;
-					}
-
-					ptr->arr[indexVal] = val;
-				}
+				if (obj.kind == ValueKind::VALUE_ARR)
+					array_store(std::get<Array*>(obj.data), index, val);
+				else if (obj.kind == ValueKind::VALUE_DICT)
+					dict_store(std::get<Dict*>(obj.data), index, val);
 				else
 				{
-					runtime_error("cannot index into non-indexable object, only arrays supported");
+					runtime_error("cannot index into non-indexable object");
 					return;
 				}
 
