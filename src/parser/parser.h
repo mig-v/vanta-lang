@@ -33,9 +33,8 @@ private:
 	ASTNode* return_stmt();
 	ASTNode* break_stmt();
 	ASTNode* continue_stmt();
-	ASTNode* expr_stmt();
+	ASTNode* assignment_or_expr_stmt();
 	ASTNode* expression();
-	ASTNode* assignment();
 	ASTNode* logical_or();
 	ASTNode* logical_and();
 	ASTNode* equality();
@@ -68,6 +67,7 @@ private:
 	bool peek_is_term_op();
 	bool peek_is_factor_op();
 	bool peek_is_unary_op();
+	bool lhs_is_assignable(ASTNode* lhs);
 
 	Token* assert_current(TokenKind kind, const std::string& errorMsg);
 	void throw_error(const std::string& errorMsg);

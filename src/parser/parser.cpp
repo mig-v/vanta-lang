@@ -72,8 +72,9 @@ ASTNode* Parser::statement()
 	if (peek() == TokenKind::TOKEN_BREAK) return break_stmt();
 	if (peek() == TokenKind::TOKEN_CONTINUE) return continue_stmt();
 
-	// fall back to expr_stmt
-	return expr_stmt();
+	// fall back to assignment_or_expr_stmt
+	return assignment_or_expr_stmt();
+	//return expr_stmt();
 }
 
 ASTNode* Parser::var_decl()
@@ -327,20 +328,36 @@ ASTNode* Parser::continue_stmt()
 		ASTData(std::in_place_type<ASTContinue>));
 }
 
-ASTNode* Parser::expr_stmt()
+ASTNode* Parser::assignment_or_expr_stmt()
 {
-	ASTNode* expr = expression();
-	assert_current(TokenKind::TOKEN_SEMICOLON, "Expect ';' after expression");
+	// we dont know if this is an assignment, or an expression stmt yet so we parse the lhs as an expression and make sure 
+	// lhs is a valid l-value
+	ASTNode* lhs = expression();
 
-	// if an assignment is returned, don't wrap it in an expr_stmt
-	if (expr->kind == ASTKind::AST_ASSIGNMENT)
-		return expr;
+	// then we check if there's an assignment operator, if there is, we found an assignment, if not, we just return the lhs expression we parsed
+	if (peek_is_assignment_op())
+	{
+		Token* op = advance();
+		ASTNode* rhs = expression();
+		assert_current(TokenKind::TOKEN_SEMICOLON, "expect semicolon after assignment");
+		if (!lhs_is_assignable(lhs))
+			throw_error("invalid assignment target");
 
+		return ctx->astArena.alloc<ASTNode>(
+			ASTKind::AST_ASSIGNMENT,
+			lhs->line,
+			lhs->column,
+			ASTData(std::in_place_type<ASTAssignment>, lhs, op->kind, rhs));
+	}
+
+	assert_current(TokenKind::TOKEN_SEMICOLON, "expect semicolon");
+
+	// otherwise, if its not an assignment, return an expr_stmt
 	return ctx->astArena.alloc<ASTNode>(
 		ASTKind::AST_EXPR_STMT,
-		expr->line,
-		expr->column,
-		ASTData(std::in_place_type<ASTExprStmt>, expr));
+		lhs ->line,
+		lhs->column,
+		ASTData(std::in_place_type<ASTExprStmt>, lhs));
 }
 
 ASTNode* Parser::block()
@@ -366,31 +383,7 @@ ASTNode* Parser::block()
 
 ASTNode* Parser::expression()
 {
-	return assignment();
-}
-
-ASTNode* Parser::assignment()
-{
-	// syntax: <assignment> ::= <identifier> <assignment_operator> <assignment>
-	//	| <logical_or>
-
-	// we dont know if this is an assignment yet, so we parse the lhs as a normal expression down the production chain
-	ASTNode* lhs = logical_or();
-
-	// then we check if there's an assignment operator, if there is, we found an assignment, if not, we just return the lhs expression we parsed
-	if (peek_is_assignment_op())
-	{
-		Token* op = advance();
-		ASTNode* rhs = assignment();
-
-		return ctx->astArena.alloc<ASTNode>(
-			ASTKind::AST_ASSIGNMENT,
-			lhs->line,
-			lhs->column,
-			ASTData(std::in_place_type<ASTAssignment>, lhs, op->kind, rhs));
-	}
-
-	return lhs;
+	return logical_or();
 }
 
 ASTNode* Parser::logical_or()
@@ -913,6 +906,19 @@ bool Parser::peek_is_unary_op()
 	TokenKind top = peek();
 
 	return (top == TokenKind::TOKEN_MINUS || top == TokenKind::TOKEN_NOT || top == TokenKind::TOKEN_BITWISE_NOT);
+}
+
+bool Parser::lhs_is_assignable(ASTNode* lhs)
+{
+	switch (lhs->kind)
+	{
+		case ASTKind::AST_IDENTIFIER:
+		case ASTKind::AST_ARRAY_ACCESS:
+		case ASTKind::AST_FIELD_ACCESS:
+			return true;
+		default: 
+			return false;
+	}
 }
 
 Token* Parser::assert_current(TokenKind kind, const std::string& errorMsg)
