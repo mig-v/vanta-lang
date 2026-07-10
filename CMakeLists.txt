@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 17)
 
-project(vanta-lang)
+project(vanta)
 
-add_executable(vanta-lang 
+add_executable(vanta 
                src/main.cpp
 
                src/core/arena_block.h
@@ -64,6 +64,13 @@ add_executable(vanta-lang
                src/test_suite/parser_test_suite.cpp
 )
 
-target_compile_definitions(vanta-lang PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(vanta PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
-target_include_directories(vanta-lang PUBLIC src/)
+target_include_directories(vanta PUBLIC src/)
+
+add_custom_command(
+    TARGET vanta POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/bin"
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:vanta>" "${CMAKE_SOURCE_DIR}/bin/$<TARGET_FILE_NAME:vanta>"
+    COMMENT "copying vanta exe to bin/..."
+)
