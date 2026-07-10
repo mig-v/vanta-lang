@@ -1,8 +1,44 @@
 #include <iostream>
+#include <sstream>
 
 #include "runtime/built_ins.h"
 #include "runtime/gc.h"
 #include "utils/value_utils.h"
+
+/* file helper methods NOT in Builtins namespace */
+bool file_is_writeable(File* filePtr, NativeFnCtx& ctx)
+{
+	if (filePtr->closed)
+	{
+		ctx.error("cannot write to closed file \"" + filePtr->path + "\"");
+		return false;
+	}
+
+	if (!(filePtr->mode & std::ios::out))
+	{
+		ctx.error("cannot write to file \"" + filePtr->path + "\" with no write permissions");
+		return false;
+	}
+
+	return true;
+}
+
+bool file_is_readable(File* filePtr, NativeFnCtx& ctx)
+{
+	if (filePtr->closed)
+	{
+		ctx.error("cannot read from closed file \"" + filePtr->path + "\"");
+		return false;
+	}
+
+	if (!(filePtr->mode & std::ios::in))
+	{
+		ctx.error("cannot read file \"" + filePtr->path + "\" with no read permissions");
+		return false;
+	}
+
+	return true;
+}
 
 namespace Builtins
 {
@@ -26,7 +62,7 @@ namespace Builtins
 			ctx.error("\"len()\" expects 1 arg, got " + std::to_string(argList.argc));
 			return Value();
 		}
-		
+
 		// check to make sure the arg has a valid length property
 		const Value& arg = argList.args[0];
 		if (arg.kind == ValueKind::VALUE_ARR)
@@ -148,11 +184,9 @@ namespace Builtins
 		}
 
 		File* filePtr = std::get<File*>(object.data);
-		if (!(filePtr->mode & std::ios::out))
-		{
-			ctx.error("cannot write to file opened in read-only mode");
+
+		if (!file_is_writeable(filePtr, ctx))
 			return Value();
-		}
 
 		// only support converting primitive types and writing them to files, disallow things like functions, arrays, etc.
 		const Value& arg = argList.args[0];
@@ -181,11 +215,9 @@ namespace Builtins
 		}
 
 		File* filePtr = std::get<File*>(object.data);
-		if (!(filePtr->mode & std::ios::out))
-		{
-			ctx.error("cannot write to file opened in read-only mode");
+
+		if (!file_is_writeable(filePtr, ctx))
 			return Value();
-		}
 
 		// only support converting primitive types and writing them to files, disallow things like functions, arrays, etc.
 		const Value& arg = argList.args[0];
@@ -203,5 +235,94 @@ namespace Builtins
 		}
 
 		return Value();
+	}
+
+	Value file_read(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("read() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		File* filePtr = std::get<File*>(object.data);
+
+		if (!file_is_readable(filePtr, ctx))
+			return Value();
+
+		std::ostringstream oss;
+		oss << filePtr->file.rdbuf();
+		return Value(oss.str());
+	}
+
+	Value file_read_line(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("read_line() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		File* filePtr = std::get<File*>(object.data);
+
+		if (!file_is_readable(filePtr, ctx))
+			return Value();
+
+		// if file is at eof, return null to signify end of file
+		std::string line;
+		if (!std::getline(filePtr->file, line))
+			return Value();
+
+		// otherwise, return the line as a string with the newline character consumed
+		return Value(line);
+	}
+
+	Value file_seek(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		File* filePtr = std::get<File*>(object.data);
+
+		if (argList.argc != 1 || argList.args[0].kind != ValueKind::VALUE_INT)
+		{
+			ctx.error("seek() expects 1 arg (integer offset)");
+			return Value();
+		}
+
+		if (filePtr->closed)
+		{
+			ctx.error("cannot seek() on closed file \"" + filePtr->path + "\"");
+			return Value();
+		}
+
+		int64_t offset = std::get<int64_t>(argList.args[0].data);
+		if (offset < 0)
+		{
+			ctx.error("seek() expects offset to be a positive integer");
+			return Value();
+		}
+
+		// need to clear files error bits before setting stream position, this is because reading to end of a file will set the eof bit
+		// and attempting to seek to 0 after reading to end will cause issues unless the state is reset
+		filePtr->file.clear();
+		filePtr->file.seekg(offset);
+		filePtr->file.seekp(offset);
+	}
+
+	Value file_eof(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("eof() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		File* filePtr = std::get<File*>(object.data);
+		if (filePtr->closed)
+		{
+			ctx.error("cannot call eof() on closed file \"" + filePtr->path + "\"");
+			return Value();
+		}
+
+		return Value(filePtr->file.eof());
+
 	}
 }

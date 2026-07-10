@@ -17,9 +17,12 @@ const std::unordered_map<std::string, NativeMethod> VM::fileMethods =
 {
 	{ "close", Builtins::file_close },
 	{ "write", Builtins::file_write },
-	{ "write_line", Builtins::file_write_line }
+	{ "write_line", Builtins::file_write_line },
+	{ "read", Builtins::file_read },
+	{ "read_line", Builtins::file_read_line },
+	{ "seek", Builtins::file_seek },
+	{ "eof", Builtins::file_eof }
 };
-
 
 VM::VM()
 {
