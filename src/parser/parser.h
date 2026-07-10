@@ -51,6 +51,7 @@ private:
 	ASTNode* block();
 	ASTNode* primary();
 	ASTNode* array_literal();
+	ASTNode* dict_literal();
 	ASTNode* instantiation();
 
 	TokenKind peek();

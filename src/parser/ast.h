@@ -14,6 +14,7 @@ enum class ASTKind
 	AST_STRING_LITERAL,
 	AST_BOOL_LITERAL,
 	AST_ARRAY,
+	AST_DICT,
 	AST_VAR_DECL,
 	AST_FN_DECL,
 	AST_BLOCK,
@@ -69,6 +70,14 @@ struct ASTArray
 	ASTArray(std::vector<ASTNode*> arr) : arr(std::move(arr)) {}
 
 	std::vector<ASTNode*> arr;
+};
+
+struct ASTDict
+{
+	ASTDict(std::vector<ASTNode*> keys, std::vector<ASTNode*> vals) : keys(std::move(keys)), vals(std::move(vals)) {}
+
+	std::vector<ASTNode*> keys;
+	std::vector<ASTNode*> vals;
 };
 
 struct ASTVarDecl
@@ -254,6 +263,7 @@ using ASTData = std::variant
 	ASTStringLiteral,
 	ASTBoolLiteral,
 	ASTArray,
+	ASTDict,
 	ASTVarDecl,
 	ASTFnDecl,
 	ASTBlock,

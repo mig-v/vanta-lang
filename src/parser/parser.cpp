@@ -674,6 +674,39 @@ ASTNode* Parser::array_literal()
 		ASTData(std::in_place_type<ASTArray>, std::move(arr)));
 }
 
+ASTNode* Parser::dict_literal()
+{
+	// consume the opening '{'
+	Token* start = advance();
+	std::vector<ASTNode*> keys;
+	std::vector<ASTNode*> vals;
+
+	// check if dict is empty, if not parse all key : val pairs
+	if (peek() != TokenKind::TOKEN_R_BRACE)
+	{
+		keys.push_back(expression());
+		assert_current(TokenKind::TOKEN_COLON, "expect ':' in key : value pair");
+		vals.push_back(expression());
+
+		// continue parsing all comma separated key : value pairs
+		while (peek() == TokenKind::TOKEN_COMMA)
+		{
+			advance();
+			keys.push_back(expression());
+			assert_current(TokenKind::TOKEN_COLON, "expect ':' in key : value pair");
+			vals.push_back(expression());
+		}
+	}
+
+	assert_current(TokenKind::TOKEN_R_BRACE, "expect '}' in dictionary declaration");
+
+	return ctx->astArena.alloc<ASTNode>(
+		ASTKind::AST_DICT,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTDict>, std::move(keys), std::move(vals)));
+}
+
 ASTNode* Parser::instantiation()
 {
 	// advance 'new' keyword
@@ -740,6 +773,11 @@ ASTNode* Parser::primary()
 	if (peek() == TokenKind::TOKEN_L_BRACKET)
 	{
 		return array_literal();
+	}
+
+	if (peek() == TokenKind::TOKEN_L_BRACE)
+	{
+		return dict_literal();
 	}
 
 	if (peek() == TokenKind::TOKEN_NEW)

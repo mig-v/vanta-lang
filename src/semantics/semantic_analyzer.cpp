@@ -74,6 +74,20 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 
 			break;
 		}
+
+		case ASTKind::AST_DICT:
+		{
+			const ASTDict& data = std::get<ASTDict>(node->data);
+
+			for (ASTNode* key : data.keys)
+				analyze_node(key);
+
+			for (ASTNode* val : data.vals)
+				analyze_node(val);
+
+			break;
+		}
+
 		case ASTKind::AST_VAR_DECL:
 		{
 			const ASTVarDecl& data = std::get<ASTVarDecl>(node->data);
@@ -82,6 +96,7 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 
 			break;
 		}
+
 		case ASTKind::AST_FN_DECL:
 		{
 			const ASTFnDecl& data = std::get<ASTFnDecl>(node->data);

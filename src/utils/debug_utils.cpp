@@ -207,6 +207,7 @@ namespace Utils
 			case ASTKind::AST_STRING_LITERAL: return "AST_STRING_LITERAL";
 			case ASTKind::AST_BOOL_LITERAL: return "AST_BOOL_LITERAL";
 			case ASTKind::AST_ARRAY: return "AST_ARRAY";
+			case ASTKind::AST_DICT: return "AST_DICT";
 			case ASTKind::AST_VAR_DECL: return "AST_VAR_DECL";
 			case ASTKind::AST_FN_DECL: return "AST_FN_DECL";
 			case ASTKind::AST_BLOCK: return "AST_BLOCK";
@@ -273,6 +274,41 @@ namespace Utils
 				oss << "<" << ast_kind_to_string(node->kind) << ">";
 				oss  << " { value: " << std::get<ASTBoolLiteral>(node->data).value << " }\n";
 				break;
+			case ASTKind::AST_ARRAY:
+			{
+				const ASTArray& data = std::get<ASTArray>(node->data);
+				
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+
+				for (size_t i = 0; i < data.arr.size(); i++)
+				{
+					oss << fieldIndent;
+					serialize_ast_node(data.arr[i], depth + 1, oss, true);
+				}
+
+				oss << indent << "}\n";
+				break;
+			}
+			case ASTKind::AST_DICT:
+			{
+				const ASTDict& data = std::get<ASTDict>(node->data);
+
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+
+				for (size_t i = 0; i < data.keys.size(); i++)
+				{
+					oss << fieldIndent << "key_" << i << " ";
+					serialize_ast_node(data.keys[i], depth + 1, oss, true);
+
+					oss << fieldIndent << "val_" << i << " ";
+					serialize_ast_node(data.vals[i], depth + 1, oss, true);
+				}
+
+				oss << indent << "}\n";
+				break;
+			}
 			case ASTKind::AST_VAR_DECL:
 			{
 				const ASTVarDecl& data = std::get<ASTVarDecl>(node->data);
@@ -674,8 +710,10 @@ namespace Utils
 			case Opcode::CALL_FN: return "CALL_FN";
 
 			case Opcode::MAKE_ARR: return "MAKE_ARR";
-			case Opcode::ARRAY_LOAD: return "ARRAY_LOAD";
-			case Opcode::ARRAY_STORE: return "ARRAY_STORE";
+			case Opcode::MAKE_DICT: return "MAKE_DICT";
+
+			case Opcode::INDEX_LOAD: return "INDEX_LOAD";
+			case Opcode::INDEX_STORE: return "INDEX_STORE";
 
 			case Opcode::LOAD_FIELD: return "LOAD_FIELD";
 			case Opcode::STORE_FIELD: return "STORE_FIELD";
@@ -713,6 +751,7 @@ namespace Utils
 			case Opcode::STORE_FIELD:
 			case Opcode::MAKE_ARR:
 			case Opcode::MAKE_INSTANCE:
+			case Opcode::MAKE_DICT:
 				return 1;
 
 			case Opcode::ADD:
@@ -720,8 +759,8 @@ namespace Utils
 			case Opcode::MUL:
 			case Opcode::DIV:
 			case Opcode::POP:
-			case Opcode::ARRAY_LOAD:
-			case Opcode::ARRAY_STORE:
+			case Opcode::INDEX_LOAD:
+			case Opcode::INDEX_STORE:
 			case Opcode::NOT:
 			case Opcode::NEG:
 			case Opcode::LOGICAL_NOT:

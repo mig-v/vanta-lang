@@ -225,6 +225,13 @@ bool Lexer::lex_file(const std::string& filepath)
 					break;
 				}
 
+				case ':':
+				{
+					advance();
+					emit_token(TokenKind::TOKEN_COLON);
+					break;
+				}
+
 				case ';':
 				{
 					advance();
