@@ -13,11 +13,13 @@ Codegen::Codegen()
 	this->classDepth = 0;
 	this->inUserFn = false;
 	this->inConstructor = false;
+	this->dependencies = nullptr;
 }
 
-CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath)
+CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit>* dependencies)
 {
 	this->ctx = ctx;
+	this->dependencies = dependencies;
 
 	module = ctx->compilerArena.alloc<CompiledModule>();
 	module->filepath = filepath;
@@ -55,7 +57,13 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 			// add the module as null but save the moduleName -> slot mapping, it will be resolved to a Module runtime object in the VM
 			int slot = alloc_slot(moduleName);
 			add_global_at_slot(moduleName, Value(), slot);
-			this->module->moduleMap[moduleName] = slot;
+			module->moduleMap[moduleName] = slot;
+
+			for (CompilationUnit& unit : (*dependencies))
+			{
+				if (unit.module->name == moduleName)
+					module->directImports[moduleName] = unit.module;
+			}
 		}
 		else if (node->kind == ASTKind::AST_FN_DECL)
 		{
@@ -85,7 +93,7 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 		else if (node->kind == ASTKind::AST_ENUM_DECL)
 		{
 			ASTEnumDecl& data = std::get<ASTEnumDecl>(node->data);
-			for (ASTEnumDecl* enumDecl : enumDeclarations)
+			for (ASTEnumDecl* enumDecl : module->enums)
 			{
 				if (enumDecl->identifier == data.identifier)
 				{
@@ -94,7 +102,7 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 				}
 			}
 
-			enumDeclarations.push_back(&data);
+			module->enums.push_back(&data);
 		}
 	}
 }
@@ -600,7 +608,7 @@ void Codegen::patch_jump(uint16_t address)
 Function* Codegen::make_fn(const std::string& name, uint16_t argc, uint16_t localsCount)
 {
 	Function* fn = ctx->compilerArena.alloc<Function>();
-	std::cout << "make_fn ... making function with name: " << name << std::endl;
+	//std::cout << "make_fn ... making function with name: " << name << std::endl;
 	fn->name = name;
 	fn->argc = argc;
 	fn->locals = localsCount;
@@ -662,16 +670,16 @@ ClassDecl* Codegen::find_class_with_name(const std::string& name)
 	return nullptr;
 }
 
-ASTEnumDecl* Codegen::find_enum_with_name(const std::string& name)
-{
-	for (ASTEnumDecl* decl : enumDeclarations)
-	{
-		if (decl->identifier == name)
-			return decl;
-	}
-
-	return nullptr;
-}
+//ASTEnumDecl* Codegen::find_enum_with_name(const std::string& name)
+//{
+//	for (ASTEnumDecl* decl : enumDeclarations)
+//	{
+//		if (decl->identifier == name)
+//			return decl;
+//	}
+//
+//	return nullptr;
+//}
 
 int Codegen::get_enum_member_by_name(ASTEnumDecl* decl, const std::string memberName)
 {
@@ -700,9 +708,9 @@ int Codegen::alloc_slot(const std::string& identifier)
 	if (currentFn && env.get_scope_depth() > 0)
 	{
 		uint16_t totalSlots = env.current_scope_slot_count();
-		std::cout << "alloc slot for: " << identifier << " slot [" << slot << "]" << "  -->  totalSlots: " << totalSlots << ", currentFn->locals" << currentFn->locals << std::endl;
+		//::cout << "alloc slot for: " << identifier << " slot [" << slot << "]" << "  -->  totalSlots: " << totalSlots << ", currentFn->locals" << currentFn->locals << std::endl;
 		currentFn->locals = std::max(currentFn->locals, static_cast<uint16_t>(slot + 1));
-		std::cout << "current fn = " << currentFn->name << " and locals is now: " << currentFn->locals << std::endl;
+		//::cout << "current fn = " << currentFn->name << " and locals is now: " << currentFn->locals << std::endl;
 	}
 
 	return slot;
@@ -1074,12 +1082,38 @@ void Codegen::compile_node(ASTNode* node)
 
 			ASTEnumDecl* enumDecl = nullptr;
 
+			// case 1: bare enum access: Enum.Member
 			if (data.object->kind == ASTKind::AST_IDENTIFIER)
 			{
 				const std::string& name = std::get<ASTIdentifier>(data.object->data).identifier;
 				EnvEntry entry = env.resolve_entry(name);
 				if (entry.scope == -1 && entry.slot == -1)
-					enumDecl = find_enum_with_name(name);
+					enumDecl = module->find_enum_with_name(name);
+			}
+
+			// case 2: enum access through module: token.Enum.Member (NOTE: this works because vanta does not allow nested module access)
+			// module1.module2.module3.class, etc is NOT allowed. only one level of module access is allowed currentlu
+			else if (data.object->kind == ASTKind::AST_FIELD_ACCESS)
+			{
+				const ASTFieldAccess& inner = std::get<ASTFieldAccess>(data.object->data);
+				if (inner.object->kind == ASTKind::AST_IDENTIFIER)
+				{
+					const std::string& moduleName = std::get<ASTIdentifier>(inner.object->data).identifier;
+
+					EnvEntry entry = env.resolve_entry(moduleName);
+
+					// module is found in direct imports, need to get it from this->dependencies now
+					auto it = module->directImports.find(moduleName);
+					if (it != module->directImports.end())
+					{
+						enumDecl = it->second->find_enum_with_name(inner.field);
+					}
+					else
+					{
+						ctx->reporter.submit_diagnostic(Diagnostic{ Phase::Codegen, "undefined module \"" + moduleName + "\"", node->line, node->column});
+						break;
+					}
+				}
 			}
 
 			// enum access, need to make sure enum exists with name, and NO variable exists with same name to allow variable shadowing

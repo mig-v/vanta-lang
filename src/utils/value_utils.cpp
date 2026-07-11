@@ -92,6 +92,11 @@ namespace Utils
 				result += "}";
 				return result;
 			}
+			case ValueKind::VALUE_MODULE:
+			{
+				Module* modulePtr = std::get<Module*>(val.data);
+				return "module " + modulePtr->name;
+			}
 		}
 	}
 
@@ -110,6 +115,8 @@ namespace Utils
 			case ValueKind::VALUE_ARR:       return "<array>";
 			case ValueKind::VALUE_FILE:      return "<file>";
 			case ValueKind::VALUE_DICT:      return "<dict>";
+			case ValueKind::VALUE_MODULE:    return "<module>";
+			default: return "<type not found>";
 		}
 	}
 }

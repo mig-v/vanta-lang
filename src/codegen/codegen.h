@@ -3,8 +3,11 @@
 #include <vector>
 #include <string>
 
+#include "core/compilation_unit.h"
 #include "core/pipeline_context.h"
+
 #include "parser/ast.h"
+
 #include "codegen/opcode.h"
 #include "codegen/value.h"
 #include "codegen/environment.h"
@@ -40,7 +43,7 @@ class Codegen
 public:
 	Codegen();
 
-	CompiledModule* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath);
+	CompiledModule* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit>* dependencies);
 private:
 	void collect_global_symbols(const std::vector<ASTNode*>& ast, const std::string& filepath);
 	void compile_node(ASTNode* node);
@@ -80,7 +83,7 @@ private:
 
 	bool class_declared_in_module(const std::string& className);
 	ClassDecl* find_class_with_name(const std::string& name);
-	ASTEnumDecl* find_enum_with_name(const std::string& name);
+	//ASTEnumDecl* find_enum_with_name(const std::string& name);
 	int get_enum_member_by_name(ASTEnumDecl* decl, const std::string memberName);
 
 	int alloc_slot(const std::string& identifier);
@@ -95,5 +98,5 @@ private:
 	bool inUserFn;
 	bool inConstructor;
 	std::vector<LoopContext> loopStack;
-	std::vector<ASTEnumDecl*> enumDeclarations;
+	std::vector<CompilationUnit>* dependencies;
 };

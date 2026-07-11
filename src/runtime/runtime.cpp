@@ -31,8 +31,11 @@ void Runtime::execute(std::vector<CompilationUnit>& compilationUnits)
 	// patch all of mains imported modules after they're initialized
 	for (CompilationUnit& dependency : main.imports)
 	{
-		uint16_t slot = main.module->moduleMap[dependency.module->name];
-		main.module->globals[slot] = Value(dependency.runtimeModule);
+		if (main.module->directImports.find(dependency.module->name) != main.module->directImports.end())
+		{
+			uint16_t slot = main.module->moduleMap[dependency.module->name];
+			main.module->globals[slot] = Value(dependency.runtimeModule);
+		}
 	}
 
 	// now everything is initialized, execute main

@@ -10,7 +10,8 @@
 const std::unordered_map<std::string, NativeMethod> VM::arrayMethods =
 {
 	{ "add", Builtins::array_add },
-	{ "pop", Builtins::array_pop }
+	{ "pop", Builtins::array_pop },
+	{ "clear", Builtins::array_clear }
 };
 
 const std::unordered_map<std::string, NativeMethod> VM::fileMethods =
@@ -86,15 +87,14 @@ Module* VM::create_runtime_module(CompiledModule* module)
 
 void VM::dump_stack()
 {
+	std::cout << "[Stack Dump Begin]\n";
 	for (const Value& val : stack)
 		std::cout << Utils::to_string(val) << std::endl;
+	std::cout << "[Stack Dump End]\n\n";
 }
 
 void VM::push_call_frame(Function* fn, CallFrameContext frameCtx, Module* hostModule)
 {
-	//std::cout << "pushing fn call frame for: " << fn->name << " , argc = " << fn->argc << " , locals = " << fn->locals << 
-	//	"and host module addr is: " << hostModule << std::endl;
-
 	// normal functions
 	if (frameCtx == CallFrameContext::Fn)
 	{
@@ -415,7 +415,7 @@ void VM::dispatch_loop()
 				// error object not callable
 				else
 				{
-					runtime_error("object is not callable");
+					runtime_error("object is not callable, type: " + Utils::type_name(fn));
 					return;
 				}
 

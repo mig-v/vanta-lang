@@ -162,6 +162,19 @@ namespace Builtins
 		return val;
 	}
 
+	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("clear() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		Array* arrPtr = std::get<Array*>(object.data);
+		arrPtr->arr.clear();
+		return Value();
+	}
+
 	Value file_close(Value& object, ArgList argList, NativeFnCtx& ctx)
 	{
 		if (argList.argc != 0)

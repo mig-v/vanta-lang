@@ -2,8 +2,11 @@
 
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "codegen/value.h"
+
+#include "parser/ast.h"
 
 struct ClassDecl
 {
@@ -37,7 +40,20 @@ struct CompiledModule
 	std::string filepath;		// actual filepath of the file compiled, e.g. src/renderer/renderer.va
 	std::vector<Value> globals;
 	std::vector<ClassDecl*> classes;
+	std::vector<ASTEnumDecl*> enums;
 	std::unordered_map<std::string, uint16_t> moduleMap;
+	std::unordered_map<std::string, CompiledModule*> directImports;
 	std::unordered_map<std::string, uint16_t> exports;	// table of identifiers -> slot mapping of global symbols in a file
 	Function* root; // main entry of the module
+
+	inline ASTEnumDecl* find_enum_with_name(const std::string& name) const
+	{
+		for (ASTEnumDecl* decl : enums)
+		{
+			if (name == decl->identifier)
+				return decl;
+		}
+
+		return nullptr;
+	}
 };

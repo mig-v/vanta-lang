@@ -1,4 +1,5 @@
 #include "semantics/import_resolver.h"
+#include "codegen/codegen.h"
 #include <iostream>
 std::vector<CompilationUnit> ImportResolver::resolve(
 	const std::vector<ASTNode*>& ast,
@@ -14,13 +15,16 @@ std::vector<CompilationUnit> ImportResolver::resolve(
 		{
 			const ASTImportStmt& data = std::get<ASTImportStmt>(node->data);
 			std::string filepath = relativePath + "/" + data.importName + ".va";
-
 			CompilationUnit unit;
 			unit.moduleAlias = data.alias;
 			unit.run_pipeline(filepath, ctx, inProgressImports);
 
 			// need to make sure all files imported within this compilation unit are merged first before the current compilation unit
 			units.insert(units.end(), unit.imports.begin(), unit.imports.end());
+
+			std::cout << "IMPORT RESOLVING FOR: " << filepath << std::endl;
+			for (CompilationUnit& unit : units)
+				std::cout << "    dependency: " << unit.module->name << std::endl;
 			units.push_back(std::move(unit));
 		}
 	}

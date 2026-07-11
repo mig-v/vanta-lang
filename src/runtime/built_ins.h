@@ -13,6 +13,7 @@ namespace Builtins
 	// array methods
 	Value array_add(Value& object, ArgList argList, NativeFnCtx& ctx);
 	Value array_pop(Value& object, ArgList argList, NativeFnCtx& ctx);
+	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx);
 
 	// file methods
 	Value file_close(Value& object, ArgList argList, NativeFnCtx& ctx);

@@ -31,7 +31,7 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 	if (!std::filesystem::exists(filepath))
 		ctx.reporter.submit_diagnostic({ Phase::Semantic, "input file not found: " + filepath, 0, 0 });
 
-	std::cout << "running pipeline on " << filepath << std::endl;
+	//std::cout << "running pipeline on " << filepath << std::endl;
 	// we can catch errors a bit earlier if we begin by checking if there are any since we may be doing imports and recursively compiling files
 	if (ctx.reporter.has_errors()) { return false; }
 
@@ -64,14 +64,14 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 
 	// run the import resolver, it itself doesn't submit any errors so we dont need to check for any
 	imports = importResolver.resolve(parser.get_ast(), ctx, inProgressImports, get_directory(this->filepath));
-	std::cout << "imports size for " << filepath << ": " << imports.size() << std::endl;
+	//std::cout << "imports size for " << filepath << ": " << imports.size() << std::endl;
 
 	// run semantic analysis and check for errors
 	semanticAnalyzer.analyze(parser.get_ast(), &ctx);
 	if (ctx.reporter.has_errors()) { return false; }
 
 	// run codegen, check for errors, and set the modules name to be used at runtime, can also be an alias like import "math" as "m"
-	this->module = codegen.compile(parser.get_ast(), &ctx, this->filepath);
+	this->module = codegen.compile(parser.get_ast(), &ctx, this->filepath, &imports);
 	this->module->name = this->moduleAlias == "" ? module_name_from_path(filepath) : this->moduleAlias;
 	if (ctx.reporter.has_errors()) { return false; }
 
