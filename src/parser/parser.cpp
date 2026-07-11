@@ -63,6 +63,7 @@ ASTNode* Parser::import_stmt()
 ASTNode* Parser::statement()
 {
 	if (peek() == TokenKind::TOKEN_VAR) return var_decl();
+	if (peek() == TokenKind::TOKEN_ENUM) return enum_decl();
 	if (peek() == TokenKind::TOKEN_CLASS) return class_decl();
 	if (peek() == TokenKind::TOKEN_IF) return if_stmt();
 	if (peek() == TokenKind::TOKEN_FOR) return for_stmt();
@@ -100,6 +101,39 @@ ASTNode* Parser::var_decl()
 		start->line,
 		start->column,
 		ASTData(std::in_place_type<ASTVarDecl>, identifier->tokenLiteral, initializer));
+}
+
+ASTNode* Parser::enum_decl()
+{
+	// advance through the 'enum' keyword
+	Token* start = advance();
+
+	Token* identifier = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect identifier in enum declaration");
+	assert_current(TokenKind::TOKEN_L_BRACE, "Expect '{' in enum declaration");
+
+	std::vector<std::string> enumMembers;
+
+	// enum declaration is not empty, parse all identifiers in the enum
+	if (peek() != TokenKind::TOKEN_R_BRACE)
+	{
+		Token* entry = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect only identifiers as enum members");
+		enumMembers.push_back(entry->tokenLiteral);
+
+		while (peek() == TokenKind::TOKEN_COMMA)
+		{
+			advance();
+			Token* entry = assert_current(TokenKind::TOKEN_IDENTIFIER, "Expect only identifiers as enum members");
+			enumMembers.push_back(entry->tokenLiteral);
+		}
+	}
+
+	assert_current(TokenKind::TOKEN_R_BRACE, "Expect '}' after enum declaration");
+
+	return ctx->astArena.alloc<ASTNode>(
+		ASTKind::AST_ENUM_DECL,
+		start->line,
+		start->column,
+		ASTData(std::in_place_type<ASTEnumDecl>, identifier->tokenLiteral, std::move(enumMembers)));
 }
 
 ASTNode* Parser::fn_decl()

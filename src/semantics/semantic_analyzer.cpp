@@ -44,7 +44,26 @@ void SemanticAnalyzer::analyze_node(ASTNode* node)
 		case ASTKind::AST_NULL:
 		case ASTKind::AST_IDENTIFIER:
 		case ASTKind::AST_IMPORT_STMT:
-			break; 
+			break;
+
+		case ASTKind::AST_ENUM_DECL:
+		{
+			const ASTEnumDecl& data = std::get<ASTEnumDecl>(node->data);
+			std::unordered_set<std::string> enumMembers;
+			
+			for (const std::string& member : data.members)
+			{
+				if (enumMembers.count(member))
+				{
+					ctx->reporter.submit_diagnostic({ Phase::Semantic, "duplicate member \"" + member + "\" in enum declaration \"" + data.identifier + "\"", node->line, node->column });
+					break;
+				}
+
+				enumMembers.insert(member);
+			}
+
+			break;
+		}
 
 		case ASTKind::AST_EXPR_STMT:
 		{

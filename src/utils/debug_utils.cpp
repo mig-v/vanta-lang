@@ -210,6 +210,7 @@ namespace Utils
 			case ASTKind::AST_DICT: return "AST_DICT";
 			case ASTKind::AST_VAR_DECL: return "AST_VAR_DECL";
 			case ASTKind::AST_FN_DECL: return "AST_FN_DECL";
+			case ASTKind::AST_ENUM_DECL: return "AST_ENUM_DECL";
 			case ASTKind::AST_BLOCK: return "AST_BLOCK";
 			case ASTKind::AST_RETURN: return "AST_RETURN";
 			case ASTKind::AST_IF: return "AST_IF";
@@ -322,6 +323,27 @@ namespace Utils
 					serialize_ast_node(data.initializer, depth + 1, oss, true);
 				else
 					oss << "(implicit null)\n";
+
+				oss << indent << "}\n";
+				break;
+			}
+			case ASTKind::AST_ENUM_DECL:
+			{
+				const ASTEnumDecl& data = std::get<ASTEnumDecl>(node->data);
+
+				oss << "<" << ast_kind_to_string(node->kind) << ">\n";
+				oss << indent << "{\n";
+
+				oss << fieldIndent << "enum_name: " << data.identifier << "\n";
+				oss << fieldIndent << "enum_members:\n";
+
+				if (data.members.size() > 0)
+				{
+					for (size_t i = 0; i < data.members.size() - 1; i++)
+						oss << fieldIndent << data.members[i] << "\n";
+
+					oss << fieldIndent << data.members[data.members.size() - 1] << "\n";
+				}
 
 				oss << indent << "}\n";
 				break;

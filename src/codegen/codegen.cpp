@@ -82,6 +82,20 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 
 			module->classes.push_back(ctx->compilerArena.alloc<ClassDecl>(data.identifier));
 		}
+		else if (node->kind == ASTKind::AST_ENUM_DECL)
+		{
+			ASTEnumDecl& data = std::get<ASTEnumDecl>(node->data);
+			for (ASTEnumDecl* enumDecl : enumDeclarations)
+			{
+				if (enumDecl->identifier == data.identifier)
+				{
+					ctx->reporter.submit_diagnostic((Diagnostic{ Phase::Codegen, "duplicate enum identifier \"" + data.identifier + "\"", node->line, node->column }));
+					continue;
+				}
+			}
+
+			enumDeclarations.push_back(&data);
+		}
 	}
 }
 
@@ -637,7 +651,7 @@ bool Codegen::class_declared_in_module(const std::string& className)
 	return false;
 }
 
-ClassDecl* Codegen::find_class_with_name(const std::string name)
+ClassDecl* Codegen::find_class_with_name(const std::string& name)
 {
 	for (ClassDecl* decl : module->classes)
 	{
@@ -646,6 +660,28 @@ ClassDecl* Codegen::find_class_with_name(const std::string name)
 	}
 
 	return nullptr;
+}
+
+ASTEnumDecl* Codegen::find_enum_with_name(const std::string& name)
+{
+	for (ASTEnumDecl* decl : enumDeclarations)
+	{
+		if (decl->identifier == name)
+			return decl;
+	}
+
+	return nullptr;
+}
+
+int Codegen::get_enum_member_by_name(ASTEnumDecl* decl, const std::string memberName)
+{
+	for (int i = 0; i < decl->members.size(); i++)
+	{
+		if (decl->members[i] == memberName)
+			return i;
+	}
+
+	return -1;
 }
 
 int Codegen::get_last_line_in_chunk()
@@ -738,6 +774,12 @@ void Codegen::compile_node(ASTNode* node)
 				emit_function(node);
 
 			inUserFn = false;
+			break;
+		}
+
+		// enum decls dont need to emit any code, collect_global_symbols() already adds it to the enumDeclaration vector
+		case ASTKind::AST_ENUM_DECL:
+		{
 			break;
 		}
 
@@ -1030,10 +1072,46 @@ void Codegen::compile_node(ASTNode* node)
 		{
 			const ASTFieldAccess& data = std::get<ASTFieldAccess>(node->data);
 
-			compile_node(data.object);
-			uint16_t fieldIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, data.field)));
-			emit_opcode(Opcode::LOAD_FIELD, node->line);
-			emit_operand(fieldIndex, node->line);
+			ASTEnumDecl* enumDecl = nullptr;
+
+			if (data.object->kind == ASTKind::AST_IDENTIFIER)
+			{
+				const std::string& name = std::get<ASTIdentifier>(data.object->data).identifier;
+				EnvEntry entry = env.resolve_entry(name);
+				if (entry.scope == -1 && entry.slot == -1)
+					enumDecl = find_enum_with_name(name);
+			}
+
+			// enum access, need to make sure enum exists with name, and NO variable exists with same name to allow variable shadowing
+			if (enumDecl)
+			{
+				int enumVal = get_enum_member_by_name(enumDecl, data.field);
+
+				// member not found, throw error
+				if (enumVal == -1)
+				{
+					ctx->reporter.submit_diagnostic(Diagnostic{ Phase::Codegen, "undefined member \"" + data.field + "\"" + " in enum \"" + enumDecl->identifier + "\"", node->line, node->column });
+					break;
+				}
+
+				// otherwise, emit just a simple load const for enumVal since enums are basically just syntactic sugar for the code
+				// var TOKEN_VAR = 0;
+				else
+				{
+					uint16_t constIndex = add_constant_to_chunk(static_cast<int64_t>(enumVal));
+					emit_opcode(Opcode::LOAD_CONST, node->line);
+					emit_operand(constIndex, node->line);
+				}
+			}
+
+			// otherwise, follow normal field access logic
+			else
+			{
+				compile_node(data.object);
+				uint16_t fieldIndex = add_constant_to_chunk(Value(ValueKind::VALUE_STRING, ValueData(std::in_place_type<std::string>, data.field)));
+				emit_opcode(Opcode::LOAD_FIELD, node->line);
+				emit_operand(fieldIndex, node->line);
+			}
 
 			break;
 		}

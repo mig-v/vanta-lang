@@ -23,6 +23,7 @@ private:
 	ASTNode* import_stmt();
 	ASTNode* statement();
 	ASTNode* var_decl();
+	ASTNode* enum_decl();
 	ASTNode* fn_decl();
 	ASTNode* class_decl();
 	ASTNode* field_decl();

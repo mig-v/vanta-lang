@@ -1,3 +1,12 @@
-import foo;
+enum TokenKind
+{
+    TOKEN_VAR,
+    TOKEN_FN,
+    TOKEN_FN
+}
 
-import math as m;
+var x = TokenKind.TOKEN_VAR;
+
+print(x);
+
+print(TokenKind.TOKEN_FN);

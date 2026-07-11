@@ -16,6 +16,7 @@ enum class ASTKind
 	AST_ARRAY,
 	AST_DICT,
 	AST_VAR_DECL,
+	AST_ENUM_DECL,
 	AST_FN_DECL,
 	AST_BLOCK,
 	AST_RETURN,
@@ -87,6 +88,14 @@ struct ASTVarDecl
 
 	std::string identifier;
 	ASTNode* initializer;
+};
+
+struct ASTEnumDecl
+{
+	ASTEnumDecl(const std::string& identifier, std::vector<std::string> members) : identifier(identifier), members(std::move(members)) {}
+
+	std::string identifier;
+	std::vector<std::string> members;
 };
 
 struct ASTFnDecl
@@ -265,6 +274,7 @@ using ASTData = std::variant
 	ASTArray,
 	ASTDict,
 	ASTVarDecl,
+	ASTEnumDecl,
 	ASTFnDecl,
 	ASTBlock,
 	ASTReturn,
