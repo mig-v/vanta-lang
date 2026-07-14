@@ -31,6 +31,13 @@ const std::unordered_map<std::string, NativeMethod> VM::dictMethods =
 	{ "contains", Builtins::dict_contains }
 };
 
+const std::unordered_map<std::string, NativeMethod> VM::strMethods =
+{
+	{ "is_digit", Builtins::str_is_digit },
+	{ "is_alpha", Builtins::str_is_alpha },
+	{ "is_alnum", Builtins::str_is_alnum }
+};
+
 VM::VM()
 {
 	this->stack.reserve(256);
@@ -312,7 +319,6 @@ void VM::dispatch_loop()
 			case Opcode::STORE_LOCAL:
 			{
 				uint16_t slot = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
-
 				Value val = stack.back();
 				stack.pop_back();
 				stack[frame.frameBase + slot] = val;
@@ -510,6 +516,14 @@ void VM::dispatch_loop()
 					case ValueKind::VALUE_DICT:
 					{
 						if (dispatch_builtin_method(object, methodName, argc, dictMethods))
+							return;
+
+						break;
+					}
+
+					case ValueKind::VALUE_STRING:
+					{
+						if (dispatch_builtin_method(object, methodName, argc, strMethods))
 							return;
 
 						break;

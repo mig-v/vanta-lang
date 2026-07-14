@@ -19,6 +19,11 @@ namespace Builtins
 	Value dict_clear(Value& object, ArgList argList, NativeFnCtx& ctx);
 	Value dict_contains(Value& object, ArgList argList, NativeFnCtx& ctx);
 
+	// str methods
+	Value str_is_digit(Value& object, ArgList argList, NativeFnCtx& ctx);
+	Value str_is_alpha(Value& object, ArgList argList, NativeFnCtx& ctx);
+	Value str_is_alnum(Value& object, ArgList argList, NativeFnCtx& ctx);
+
 	// file methods
 	Value file_close(Value& object, ArgList argList, NativeFnCtx& ctx);
 	Value file_write(Value& object, ArgList argList, NativeFnCtx& ctx);

@@ -66,4 +66,5 @@ private:
 	static const std::unordered_map<std::string, NativeMethod> arrayMethods;
 	static const std::unordered_map<std::string, NativeMethod> fileMethods;
 	static const std::unordered_map<std::string, NativeMethod> dictMethods;
+	static const std::unordered_map<std::string, NativeMethod> strMethods;
 };

@@ -162,6 +162,19 @@ namespace Builtins
 		return val;
 	}
 
+	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("clear() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		Array* arrPtr = std::get<Array*>(object.data);
+		arrPtr->arr.clear();
+		return Value();
+	}
+
 	Value dict_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
 	{
 		if (argList.argc != 0)
@@ -187,17 +200,67 @@ namespace Builtins
 		return Value(dictPtr->dict.find(argList.args[0]) != dictPtr->dict.end());
 	}
 
-	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
+	Value str_is_digit(Value& object, ArgList argList, NativeFnCtx& ctx)
 	{
 		if (argList.argc != 0)
 		{
-			ctx.error("clear() expects 0 args, got " + std::to_string(argList.argc));
+			ctx.error("is_digit() expects 0 arg, got " + std::to_string(argList.argc));
 			return Value();
 		}
 
-		Array* arrPtr = std::get<Array*>(object.data);
-		arrPtr->arr.clear();
-		return Value();
+		const std::string& str = std::get<std::string>(object.data);
+		if (str.empty()) 
+			return Value(false);
+
+		for (unsigned char c : str)
+		{
+			if (!std::isdigit(c))
+				return Value(false);
+		}
+
+		return Value(true);
+	}
+
+	Value str_is_alpha(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("is_alpha() expects 0 arg, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		const std::string& str = std::get<std::string>(object.data);
+		if (str.empty())
+			return Value(false);
+
+		for (unsigned char c : str)
+		{
+			if (!std::isalpha(c))
+				return Value(false);
+		}
+
+		return Value(true);
+	}
+
+	Value str_is_alnum(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("is_alnum() expects 0 arg, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		const std::string& str = std::get<std::string>(object.data);
+		if (str.empty())
+			return Value(false);
+
+		for (unsigned char c : str)
+		{
+			if (!std::isalnum(c))
+				return Value(false);
+		}
+
+		return Value(true);
 	}
 
 	Value file_close(Value& object, ArgList argList, NativeFnCtx& ctx)
