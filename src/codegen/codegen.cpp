@@ -905,8 +905,11 @@ void Codegen::compile_node(ASTNode* node)
 			}
 			else
 			{
+				emit_opcode(Opcode::JMP, node->line);
+				uint16_t endJump = emit_operand(0xFFFF, node->line);
 				patch_jump(elseJump);
 				emit_opcode(Opcode::POP, node->line);
+				patch_jump(endJump);
 			}
 			
 			break;
