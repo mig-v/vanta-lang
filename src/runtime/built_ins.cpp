@@ -162,6 +162,31 @@ namespace Builtins
 		return val;
 	}
 
+	Value dict_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 0)
+		{
+			ctx.error("clear() expects 0 args, got " + std::to_string(argList.argc));
+			return Value();
+		}
+
+		Dict* dictPtr = std::get<Dict*>(object.data);
+		dictPtr->dict.clear();
+		return Value();
+	}
+
+	Value dict_contains(Value& object, ArgList argList, NativeFnCtx& ctx)
+	{
+		if (argList.argc != 1)
+		{
+			ctx.error("contains() expects 1 arg, got " + std::to_string(argList.argc));
+			return Value(false);
+		}
+
+		Dict* dictPtr = std::get<Dict*>(object.data);
+		return Value(dictPtr->dict.find(argList.args[0]) != dictPtr->dict.end());
+	}
+
 	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx)
 	{
 		if (argList.argc != 0)

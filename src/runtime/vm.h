@@ -50,6 +50,7 @@ private:
 	void array_store(Array* arrPtr, const Value& index, const Value& val);
 	void dict_load(Dict* dictPtr, const Value& key);
 	void dict_store(Dict* dictPtr, const Value& key, const Value& val);
+	void string_load(const std::string& str, const Value& index);
 
 	// debug function declarations
 	#ifdef _DEBUG
@@ -61,6 +62,8 @@ private:
 	std::vector<CallFrame> callStack;
 	bool hasErrors;
 
+	// built in methods
 	static const std::unordered_map<std::string, NativeMethod> arrayMethods;
 	static const std::unordered_map<std::string, NativeMethod> fileMethods;
+	static const std::unordered_map<std::string, NativeMethod> dictMethods;
 };

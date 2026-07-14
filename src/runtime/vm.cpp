@@ -25,6 +25,12 @@ const std::unordered_map<std::string, NativeMethod> VM::fileMethods =
 	{ "eof", Builtins::file_eof }
 };
 
+const std::unordered_map<std::string, NativeMethod> VM::dictMethods =
+{
+	{ "clear", Builtins::dict_clear },
+	{ "contains", Builtins::dict_contains }
+};
+
 VM::VM()
 {
 	this->stack.reserve(256);
@@ -230,6 +236,24 @@ void VM::dict_load(Dict* dictPtr, const Value& key)
 void VM::dict_store(Dict* dictPtr, const Value& key, const Value& val)
 {
 	dictPtr->dict[key] = val;
+}
+
+void VM::string_load(const std::string& str, const Value& index)
+{
+	if (index.kind != ValueKind::VALUE_INT)
+	{
+		runtime_error("cannot index with non-integer type");
+		return;
+	}
+
+	int64_t indexVal = std::get<int64_t>(index.data);
+	if (indexVal >= str.size())
+	{
+		runtime_error("out of range index: " + std::to_string(indexVal) + " on string");
+		return;
+	}
+
+	stack.push_back(std::string(1, str[indexVal]));
 }
 
 void VM::dispatch_loop()
@@ -478,6 +502,14 @@ void VM::dispatch_loop()
 					case ValueKind::VALUE_FILE:
 					{
 						if (dispatch_builtin_method(object, methodName, argc, fileMethods))
+							return;
+
+						break;
+					}
+
+					case ValueKind::VALUE_DICT:
+					{
+						if (dispatch_builtin_method(object, methodName, argc, dictMethods))
 							return;
 
 						break;
@@ -1098,6 +1130,8 @@ void VM::dispatch_loop()
 					array_load(std::get<Array*>(obj.data), index);
 				else if (obj.kind == ValueKind::VALUE_DICT)
 					dict_load(std::get<Dict*>(obj.data), index);
+				else if (obj.kind == ValueKind::VALUE_STRING)
+					string_load(std::get<std::string>(obj.data), index);
 				else
 				{
 					runtime_error("cannot index into non-indexable object");
@@ -1123,6 +1157,11 @@ void VM::dispatch_loop()
 					array_store(std::get<Array*>(obj.data), index, val);
 				else if (obj.kind == ValueKind::VALUE_DICT)
 					dict_store(std::get<Dict*>(obj.data), index, val);
+				else if (obj.kind == ValueKind::VALUE_STRING)
+				{
+					runtime_error("cannot write directly to string by index");
+					return;
+				}
 				else
 				{
 					runtime_error("cannot index into non-indexable object");

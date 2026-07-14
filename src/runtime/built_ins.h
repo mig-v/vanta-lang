@@ -15,6 +15,10 @@ namespace Builtins
 	Value array_pop(Value& object, ArgList argList, NativeFnCtx& ctx);
 	Value array_clear(Value& object, ArgList argList, NativeFnCtx& ctx);
 
+	// dict methods
+	Value dict_clear(Value& object, ArgList argList, NativeFnCtx& ctx);
+	Value dict_contains(Value& object, ArgList argList, NativeFnCtx& ctx);
+
 	// file methods
 	Value file_close(Value& object, ArgList argList, NativeFnCtx& ctx);
 	Value file_write(Value& object, ArgList argList, NativeFnCtx& ctx);
