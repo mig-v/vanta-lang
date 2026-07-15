@@ -91,6 +91,8 @@ Module* VM::create_runtime_module(CompiledModule* module)
 	runtimeModule->exports = module->exports;
 	runtimeModule->root = module->root;
 	runtimeModule->compileTimeClassDecls = module->classes;
+	runtimeModule->filepath = module->filepath;
+	runtimeModule->stemmedPath = module->stemmedPath;
 
 	for (ClassDecl* decl : module->classes)
 		runtimeModule->classMap[decl->name] = decl;
@@ -341,14 +343,34 @@ void VM::dispatch_loop()
 				if (val.kind == ValueKind::VALUE_INSTANCE)
 				{
 					Instance* instance = std::get<Instance*>(val.data);
-					auto it = instance->classDecl->fields.find(fieldName);
-					if (it == instance->classDecl->fields.end())
+
+					// load a field from instance
+					if (instance->classDecl->fields.find(fieldName) != instance->classDecl->fields.end())
 					{
-						runtime_error("undefined field \"" + fieldName + "\"");
-						return;
+						stack.push_back(instance->fields[instance->classDecl->fields[fieldName]]);
 					}
 
-					stack.emplace_back(instance->fields[instance->classDecl->fields[fieldName]]);
+					// load a method from instance, need to alloc a BoundMethod object for this
+					else if (instance->classDecl->methods.find(fieldName) != instance->classDecl->methods.end())
+					{
+						if (fieldName == instance->classDecl->name)
+						{
+							runtime_error("cannot bind a classes constructor");
+							return;
+						}
+						BoundMethod* boundMethod = gc.alloc_object<BoundMethod>();
+						
+						boundMethod->object = instance;
+						boundMethod->method = instance->classDecl->methods[fieldName];
+						stack.push_back(boundMethod);
+					}
+
+					// no field or method with 'fieldName'
+					else
+					{
+						runtime_error("undefined field \"" + fieldName + "\" on class \"" + instance->classDecl->name + "\"");
+						return;
+					}
 				}
 
 				// check to see if we're loading a value from a module
@@ -399,7 +421,6 @@ void VM::dispatch_loop()
 				if (fn.kind == ValueKind::VALUE_FN)
 				{
 					Function* fnData = std::get<Function*>(fn.data);
-
 					if (argc != fnData->argc)
 					{
 						runtime_error("expected " + std::to_string(fnData->argc) + " arg(s), but got " + std::to_string(argc));
@@ -442,6 +463,24 @@ void VM::dispatch_loop()
 					frame.ip += 2;
 				}
 
+				else if (fn.kind == ValueKind::VALUE_BOUND_METHOD)
+				{
+					BoundMethod* fnData = std::get<BoundMethod*>(fn.data);
+					if (argc != fnData->method->argc)
+					{
+						std::cout << "Bound method crash, method name == " << fnData->method->name << ", argc == " << argc << std::endl;
+						runtime_error("expected " + std::to_string(fnData->method->argc) + " arg(s), but got " + std::to_string(argc));
+						return;
+					}
+
+					frame.ip += 2;
+
+					// methods expect the instance to be at stack.size - argc - 1, but BoundMethod is sitting there, so we need to overwrite
+					// the bound method with the actual instance here
+					stack[stack.size() - argc - 1] = fnData->object;
+					push_call_frame(fnData->method, CallFrameContext::Method, fnData->object->hostModule);
+				}
+
 				// error object not callable
 				else
 				{
@@ -474,6 +513,7 @@ void VM::dispatch_loop()
 
 						// then need to verify the instance has a method named 'methodName'
 						auto& method = instance->classDecl->methods.find(methodName);
+
 						if (method == instance->classDecl->methods.end())
 						{
 							runtime_error("no class method \"" + methodName + "\" exists for object");
@@ -1277,7 +1317,7 @@ void VM::runtime_error(const std::string& errorMsg)
 {
 	CallFrame& frame = callStack.back();
 	int line = frame.fn->chunk->get_line_with_offset(frame.ip - frame.fn->chunk->code.data());
-	std::cout << "[Runtime Error] line " << line << ": file \"" << frame.hostModule->name << ".va\" " << errorMsg << "\n\n";
+	std::cout << "[Runtime Error] line " << line << ": file \"" << frame.hostModule->stemmedPath << ".va\" " << errorMsg << "\n";
 	print_stack_trace();
 	this->hasErrors = true;
 }
@@ -1289,7 +1329,7 @@ void VM::print_stack_trace()
 	{
 		CallFrame& frame = *it;
 		int line = frame.fn->chunk->get_line_with_offset(frame.ip - frame.fn->chunk->code.data());
-		std::cout << "line " << line << ": file \"" << frame.hostModule->name << ".va\" in " << frame.fn->name << "()" << std::endl;
+		std::cout << "line " << line << ": file \"" << frame.hostModule->stemmedPath << ".va\" in " << frame.fn->name << "()" << std::endl;
 	}
 }
 
