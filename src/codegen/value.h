@@ -68,7 +68,9 @@ struct Dict : GCObject
 
 struct Module : GCObject
 {
+	std::string filepath;								  // actual filepath of the module, used for errors
 	std::string name;                                     // name of module, reflects any alias that is passed in an import statement
+	std::string stemmedPath;							  // true name of module, is not affected by aliasing in import statements
 	std::vector<Value> globals;	                          // array of module level globals
 	std::vector<ClassDecl*> compileTimeClassDecls;		  // vector of compile time class decls that can be used in certain scenarios
 	std::unordered_map<std::string, uint16_t> exports;	  // mapping of identifiers to slots that store those identifiers in 'globals'
@@ -97,6 +99,12 @@ struct File : GCObject
 	}
 };
 
+struct BoundMethod : GCObject
+{
+	Instance* object;
+	Function* method;
+};
+
 // native functions are just function pointers to raw c++ functions that take in an arg list and return a value
 using NativeFn = Value(*)(ArgList args, NativeFnCtx& ctx);
 using NativeMethod = Value(*)(Value& object, ArgList args, NativeFnCtx& ctx);
@@ -109,6 +117,7 @@ using ValueData = std::variant
 	bool,
 	std::string,
 	Function*,
+	BoundMethod*,
 	Instance*,
 	Array*,
 	Module*,
@@ -127,6 +136,7 @@ enum class ValueKind
 	VALUE_ARR,
 	VALUE_DICT,
 	VALUE_FN,
+	VALUE_BOUND_METHOD,
 	VALUE_INSTANCE,
 	VALUE_MODULE,
 	VALUE_FILE,
@@ -142,6 +152,7 @@ struct Value
 	Value(bool val) : kind(ValueKind::VALUE_BOOL), data(std::in_place_type<bool>, val) {}
 	Value(const std::string& val) : kind(ValueKind::VALUE_STRING), data(std::in_place_type<std::string>, val) {}
 	Value(Function* val) : kind(ValueKind::VALUE_FN), data(std::in_place_type<Function*>, val) {}
+	Value(BoundMethod* val) : kind(ValueKind::VALUE_BOUND_METHOD), data(std::in_place_type<BoundMethod*>, val) {}
 	Value(NativeFn val) : kind(ValueKind::VALUE_NATIVE_FN), data(std::in_place_type<NativeFn>, val) {}
 	Value(Instance* val) : kind(ValueKind::VALUE_INSTANCE), data(std::in_place_type<Instance*>, val) {}
 	Value(Array* val) : kind(ValueKind::VALUE_ARR), data(std::in_place_type<Array*>, val) {}

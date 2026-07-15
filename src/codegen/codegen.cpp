@@ -88,7 +88,24 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 				continue;
 			}
 
-			module->classes.push_back(ctx->compilerArena.alloc<ClassDecl>(data.identifier));
+			ClassDecl* decl = ctx->compilerArena.alloc<ClassDecl>(data.identifier);
+
+			// check to see if the AST has a constructor for this class
+			// if it does, store the argc, and a bool on the classDecl
+			for (ASTNode* member : data.members)
+			{
+				if (member->kind == ASTKind::AST_FN_DECL)
+				{
+					const ASTFnDecl& fnData = std::get<ASTFnDecl>(member->data);
+					if (fnData.identifier == data.identifier)
+					{
+						decl->hasConstructor = true;
+						decl->constructorArgc = fnData.params.size();
+					}
+				}
+			}
+
+			module->classes.push_back(decl);
 		}
 		else if (node->kind == ASTKind::AST_ENUM_DECL)
 		{
@@ -126,7 +143,11 @@ void Codegen::emit_opcode(Opcode opcode, int sourceLine)
 	curr->code.push_back(static_cast<uint8_t>(opcode));
 
 	int line = get_last_line_in_chunk();
-	if (line == sourceLine)
+
+	// if the function is empty, line will be 0 here so we push a new LineInfo
+	if (line == 0)
+		curr->lines.push_back(LineInfo(sourceLine, 1));
+	else if (line == sourceLine)
 		curr->lines.back().span++;
 	else
 		curr->lines.push_back(LineInfo(sourceLine, 1));
@@ -140,7 +161,11 @@ uint16_t Codegen::emit_operand(uint16_t operand, int sourceLine)
 	curr->code.push_back(static_cast<uint8_t>(operand >> 8) & 0xFF);	// write high byte
 
 	int line = get_last_line_in_chunk();
-	if (line == sourceLine)
+
+	// i dont think this condition will ever be true, but ill put it here for sanity's sake
+	if (line == 0)
+		curr->lines.push_back(LineInfo(sourceLine, 2));
+	else if (line == sourceLine)
 		curr->lines.back().span += 2;
 	else
 		curr->lines.push_back(LineInfo(sourceLine, 2));
@@ -425,7 +450,6 @@ void Codegen::emit_local_class_instantiation(ASTNode* node)
 	const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
 	const std::string& className = data.path.back();
 	int declIndex = -1;
-
 	for (int i = 0; i < module->classes.size(); i++)
 	{
 		if (module->classes[i]->name == className)
@@ -446,13 +470,36 @@ void Codegen::emit_local_class_instantiation(ASTNode* node)
 		emit_operand(static_cast<uint16_t>(declIndex), node->line);
 	}
 
-	for (ASTNode* arg : data.args)
-		compile_node(arg);
+	ClassDecl* decl = module->classes[declIndex];
 
-	uint16_t nameIndex = add_constant_to_chunk(Value(className));
-	emit_opcode(Opcode::CALL_METHOD, node->line);
-	emit_operand(nameIndex, node->line);
-	emit_operand(data.args.size(), node->line);
+	// no constructor provided, we dont need to emit a method call for the constructor in this case
+	if (!decl->hasConstructor)
+	{
+		// if args were provided, but there is no constructor, issue a compile time error
+		if (data.args.size() > 0)
+		{
+			ctx->reporter.submit_diagnostic({ Phase::Codegen, "class \"" + className + "\" has no constructor but " + std::to_string(data.args.size()) + " args were provided", node->line, node->column });
+			return;
+		}
+	}
+
+	// constructor is provided, verify args and emit a method call to the constructor if everything is valid
+	else
+	{
+		if (decl->constructorArgc != static_cast<int>(data.args.size()))
+		{
+			ctx->reporter.submit_diagnostic({ Phase::Codegen, "class \"" + className + "\" constructor expects " + std::to_string(decl->constructorArgc) + " args but got " + std::to_string(data.args.size()) + " args", node->line, node->column});
+			return;
+		}
+
+		for (ASTNode* arg : data.args)
+			compile_node(arg);
+
+		uint16_t nameIndex = add_constant_to_chunk(Value(className));
+		emit_opcode(Opcode::CALL_METHOD, node->line);
+		emit_operand(nameIndex, node->line);
+		emit_operand(data.args.size(), node->line);
+	}
 }
 
 void Codegen::emit_module_class_instantiation(ASTNode* node)
@@ -1189,7 +1236,6 @@ void Codegen::compile_node(ASTNode* node)
 				emit_local_class_instantiation(node);
 			else
 				emit_module_class_instantiation(node);
-
 
 			break;
 		}

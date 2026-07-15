@@ -10,11 +10,14 @@
 
 struct ClassDecl
 {
-	ClassDecl(const std::string& name) : name(name) {}
+	ClassDecl(const std::string& name) : name(name), hasConstructor(false), constructorArgc(0) {}
 
 	std::string name;
 	std::unordered_map<std::string, uint16_t> fields;	// map field name to slot
 	std::unordered_map<std::string, Function*> methods; // map method name to function object
+
+	bool hasConstructor;
+	int constructorArgc;
 };
 
 struct LineInfo
@@ -38,6 +41,7 @@ struct CompiledModule
 {
 	std::string name;			// name of the module itself, or the alias provided by an import. e.g. math or 'm' in the case -> [import math as m]
 	std::string filepath;		// actual filepath of the file compiled, e.g. src/renderer/renderer.va
+	std::string stemmedPath;	// stemmed path, always true to the source module name while CompiledModule::name can contain an alias
 	std::vector<Value> globals;
 	std::vector<ClassDecl*> classes;
 	std::vector<ASTEnumDecl*> enums;
