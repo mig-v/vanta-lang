@@ -53,11 +53,10 @@ bool Runtime::execute_compilation_unit(CompilationUnit* unit, std::vector<Compil
 			// recurse into the deepest dependency
 			if (!execute_compilation_unit(dependency, allUnits))
 				return false;
-
-			// run the module, this fills the modules globals table with the correct state of the program
-			uint16_t slot = unit->module->moduleMap[dependency->module->name];
-			unit->module->globals[slot] = Value(dependency->runtimeModule);
 		}
+
+		uint16_t slot = unit->module->moduleMap[dependency->module->name];
+		unit->module->globals[slot] = Value(dependency->runtimeModule);
 	}
 
 	std::cout << "Creating new runtime module for <" << unit->filepath << ">\n";
