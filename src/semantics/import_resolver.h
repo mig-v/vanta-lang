@@ -10,10 +10,12 @@ class ImportResolver
 public:
 	ImportResolver() = default;
 
-	std::vector<CompilationUnit> resolve(
+	std::vector<CompilationUnit*> resolve(
 		const std::vector<ASTNode*>& ast,
 		PipelineContext& ctx,
 		std::unordered_set<std::string>& inProgressImports,
-		const std::string& relativePath);
+		const std::string& relativePath,
+		std::unordered_map<std::string, CompilationUnit*>& unitCache);
 private:
+	std::string normalize_path(const std::string& filepath);
 };

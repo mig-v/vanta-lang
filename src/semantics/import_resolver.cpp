@@ -1,34 +1,50 @@
 #include "semantics/import_resolver.h"
 #include "codegen/codegen.h"
+
 #include <iostream>
-std::vector<CompilationUnit> ImportResolver::resolve(
+#include <filesystem>
+
+std::string ImportResolver::normalize_path(const std::string& filepath)
+{
+	return std::filesystem::canonical(filepath).string();
+}
+
+std::vector<CompilationUnit*> ImportResolver::resolve(
 	const std::vector<ASTNode*>& ast,
 	PipelineContext& ctx,
 	std::unordered_set<std::string>& inProgressImports,
-	const std::string& relativePath)
+	const std::string& relativePath,
+	std::unordered_map<std::string, CompilationUnit*>& unitCache)
 {
-	std::vector<CompilationUnit> units;
+	std::vector<CompilationUnit*> units;
 
 	for (ASTNode* node : ast)
 	{
 		if (node->kind == ASTKind::AST_IMPORT_STMT)
 		{
 			const ASTImportStmt& data = std::get<ASTImportStmt>(node->data);
-			std::string filepath = relativePath + "/" + data.importName + ".va";
-			CompilationUnit unit;
-			unit.moduleAlias = data.alias;
-			unit.run_pipeline(filepath, ctx, inProgressImports);
+			std::string filepath = normalize_path(relativePath + "/" + data.importName + ".va");
 
-			// need to make sure all files imported within this compilation unit are merged first before the current compilation unit
-			units.insert(units.end(), unit.imports.begin(), unit.imports.end());
+			auto it = unitCache.find(filepath);
 
-			std::cout << "IMPORT RESOLVING FOR: " << filepath << std::endl;
-			for (CompilationUnit& unit : units)
-				std::cout << "    dependency: " << unit.module->name << std::endl;
-			units.push_back(std::move(unit));
+			// cache hit, this file has already been compiled, point to that CompilationUnit rather than redoing work
+			if (it != unitCache.end())
+			{
+				std::cout << "cache hit for <" << filepath << ">\n";
+				units.push_back(it->second);
+			}
+
+			// otherwise, allocate a new compilation unit and run the pipeline on it
+			else
+			{
+				CompilationUnit* unit = ctx.compilerArena.alloc<CompilationUnit>();
+				unit->moduleAlias = data.alias;
+				unitCache[filepath] = unit;
+				unit->run_pipeline(filepath, ctx, inProgressImports, unitCache);
+				units.push_back(unit);
+			}
 		}
 	}
 
-	std::cout << "returning compilation units size: " << units.size() << std::endl;
 	return units;
 }

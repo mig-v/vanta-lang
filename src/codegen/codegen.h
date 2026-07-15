@@ -43,7 +43,7 @@ class Codegen
 public:
 	Codegen();
 
-	CompiledModule* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit>* dependencies);
+	CompiledModule* compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit*>* dependencies);
 private:
 	void collect_global_symbols(const std::vector<ASTNode*>& ast, const std::string& filepath);
 	void compile_node(ASTNode* node);
@@ -98,5 +98,5 @@ private:
 	bool inUserFn;
 	bool inConstructor;
 	std::vector<LoopContext> loopStack;
-	std::vector<CompilationUnit>* dependencies;
+	std::vector<CompilationUnit*>* dependencies;
 };

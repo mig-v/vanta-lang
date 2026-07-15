@@ -16,7 +16,7 @@ Codegen::Codegen()
 	this->dependencies = nullptr;
 }
 
-CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit>* dependencies)
+CompiledModule* Codegen::compile(const std::vector<ASTNode*>& ast, PipelineContext* ctx, const std::string& filepath, std::vector<CompilationUnit*>* dependencies)
 {
 	this->ctx = ctx;
 	this->dependencies = dependencies;
@@ -59,10 +59,10 @@ void Codegen::collect_global_symbols(const std::vector<ASTNode*>& ast, const std
 			add_global_at_slot(moduleName, Value(), slot);
 			module->moduleMap[moduleName] = slot;
 
-			for (CompilationUnit& unit : (*dependencies))
+			for (CompilationUnit* unit : (*dependencies))
 			{
-				if (unit.module->name == moduleName)
-					module->directImports[moduleName] = unit.module;
+				if (unit->module->name == moduleName)
+					module->directImports[moduleName] = unit->module;
 			}
 		}
 		else if (node->kind == ASTKind::AST_FN_DECL)
@@ -459,8 +459,6 @@ void Codegen::emit_module_class_instantiation(ASTNode* node)
 {
 	const ASTInstantiation& data = std::get<ASTInstantiation>(node->data);
 	EnvEntry entry = env.resolve_entry(data.path[0]);
-	std::cout << "emit_module_class_instantiation called, but not implemented..., data.path[0] = " << data.path[0] << "\n";
-	std::cout << "emit_module_class_instantiation called, but not implemented..., data.path[1] = " << data.path[1] << "\n";
 
 	if (entry.scope == -1 && entry.slot == -1)
 	{

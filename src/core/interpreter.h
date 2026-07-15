@@ -12,5 +12,6 @@ public:
 	void run_tests();
 private:
 	PipelineContext ctx;
-	std::vector<CompilationUnit> compilationUnits;
+	std::unordered_map<std::string, CompilationUnit*> unitCache;
+	std::vector<CompilationUnit*> compilationUnits;
 };

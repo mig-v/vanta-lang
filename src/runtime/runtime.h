@@ -10,9 +10,9 @@ public:
 	Runtime();
 	~Runtime();
 
-	void execute(std::vector<CompilationUnit>& compilationUnits);
+	void execute(std::vector<CompilationUnit*>& compilationUnits);
 private:
-	bool execute_compilation_unit(CompilationUnit& unit, std::vector<CompilationUnit>& allUnits);
+	bool execute_compilation_unit(CompilationUnit* unit, std::vector<CompilationUnit*>& allUnits);
 
 	VM* vm;
 };

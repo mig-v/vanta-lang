@@ -12,9 +12,9 @@ void Interpreter::run(const std::string& mainPath)
 {
 	std::unordered_set<std::string> inProgressImports;
 	Runtime runtime;
-	CompilationUnit main;
+	CompilationUnit* main = ctx.compilerArena.alloc<CompilationUnit>();
 
-	main.run_pipeline(mainPath, ctx, inProgressImports);
+	main->run_pipeline(mainPath, ctx, inProgressImports, unitCache);
 
 	if (ctx.reporter.has_errors())
 	{
@@ -22,7 +22,7 @@ void Interpreter::run(const std::string& mainPath)
 		return;
 	}
 
-	compilationUnits.push_back(std::move(main));
+	compilationUnits.push_back(main);
 
 #ifdef _DEBUG
 	size_t astBytesAlloced = ctx.astArena.get_total_allocated_bytes();
@@ -32,10 +32,10 @@ void Interpreter::run(const std::string& mainPath)
 
 	std::cout
 		<< "[AST Memory Arena]\n"
-		<< "    byted allocated: " << astBytesAlloced << "\n"
+		<< "    bytes allocated: " << astBytesAlloced << "\n"
 		<< "    block count    : " << astBlock << "\n\n"
 		<< "[Compiler Memory Arena]\n"
-		<< "    byted allocated: " << compilerBytesAlloced << "\n"
+		<< "    bytes allocated: " << compilerBytesAlloced << "\n"
 		<< "    block count    : " << compilerBlockCount << "\n";
 #endif
 

@@ -16,17 +16,12 @@ std::string CompilationUnit::get_directory(const std::string& filepath)
 	return dir.empty() ? "." : dir.string();
 }
 
-std::string CompilationUnit::normalize_path(const std::string& filepath)
-{
-	return std::filesystem::canonical(filepath).string();
-}
-
 std::string CompilationUnit::module_name_from_path(const std::string& filepath)
 {
 	return std::filesystem::path(filepath).stem().string();
 }
 
-bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext& ctx, std::unordered_set<std::string>& inProgressImports)
+bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext& ctx, std::unordered_set<std::string>& inProgressImports, std::unordered_map<std::string, CompilationUnit*>& unitCache)
 {
 	if (!std::filesystem::exists(filepath))
 		ctx.reporter.submit_diagnostic({ Phase::Semantic, "input file not found: " + filepath, 0, 0 });
@@ -36,7 +31,7 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 	if (ctx.reporter.has_errors()) { return false; }
 
 	// normalize the filepath and insert this file into the in progress set so we can detect circular import errors
-	this->filepath = normalize_path(filepath);
+	this->filepath = filepath;
 
 	if (inProgressImports.count(this->filepath))
 	{
@@ -63,7 +58,7 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 	if (ctx.reporter.has_errors()) { return false; }
 
 	// run the import resolver, it itself doesn't submit any errors so we dont need to check for any
-	imports = importResolver.resolve(parser.get_ast(), ctx, inProgressImports, get_directory(this->filepath));
+	imports = importResolver.resolve(parser.get_ast(), ctx, inProgressImports, get_directory(this->filepath), unitCache);
 	//std::cout << "imports size for " << filepath << ": " << imports.size() << std::endl;
 
 	// run semantic analysis and check for errors
@@ -77,8 +72,8 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 
 #ifdef _DEBUG
 	//lexer.dump_tokens();
-	std::cout << Utils::serialize_ast(parser.get_ast());
-	std::cout << Utils::disassemble_compiled_module(module);
+	//std::cout << Utils::serialize_ast(parser.get_ast());
+	//std::cout << Utils::disassemble_compiled_module(module);
 #endif
 
 	// finally remove this file from in progress and return true signifying this file was compiled successfully

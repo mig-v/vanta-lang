@@ -311,7 +311,6 @@ bool Lexer::lex_file(const std::string& filepath)
 
 				default:
 				{
-					std::cout << "lex, default, lex_error called on: " << (int)current << std::endl;
 					lex_error();
 					break;
 				}
