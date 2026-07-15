@@ -14,8 +14,16 @@ namespace Utils
 			case ValueKind::VALUE_BOOL:     return std::get<bool>(val.data);
 			case ValueKind::VALUE_STRING:   return std::get<std::string>(val.data) != "";
 			case ValueKind::VALUE_FN:       return std::get<Function*>(val.data) != nullptr;
-			case ValueKind::VALUE_INSTANCE: return true;
 			case ValueKind::VALUE_NULL:     return false;
+
+			case ValueKind::VALUE_INSTANCE:
+			case ValueKind::VALUE_NATIVE_FN: 
+			case ValueKind::VALUE_ARR:
+			case ValueKind::VALUE_FILE:
+			case ValueKind::VALUE_DICT:
+			case ValueKind::VALUE_MODULE:
+			case ValueKind::VALUE_BOUND_METHOD:
+				return true;
 		}
 	}
 
@@ -97,6 +105,11 @@ namespace Utils
 				Module* modulePtr = std::get<Module*>(val.data);
 				return "module " + modulePtr->name;
 			}
+			case ValueKind::VALUE_BOUND_METHOD:
+			{
+				BoundMethod* methodPtr = std::get<BoundMethod*>(val.data);
+				return "bound method " + methodPtr->method->name;
+			}
 		}
 	}
 
@@ -104,18 +117,19 @@ namespace Utils
 	{
 		switch (val.kind)
 		{
-			case ValueKind::VALUE_INT:       return "<int>";
-			case ValueKind::VALUE_FLOAT:     return "<float>";
-			case ValueKind::VALUE_BOOL:      return "<bool>";
-			case ValueKind::VALUE_STRING:    return "<string>";
-			case ValueKind::VALUE_FN:        return "<fn>";
-			case ValueKind::VALUE_INSTANCE:  return "<instance>";
-			case ValueKind::VALUE_NULL:      return "<null>";
-			case ValueKind::VALUE_NATIVE_FN: return "<native_fn>";
-			case ValueKind::VALUE_ARR:       return "<array>";
-			case ValueKind::VALUE_FILE:      return "<file>";
-			case ValueKind::VALUE_DICT:      return "<dict>";
-			case ValueKind::VALUE_MODULE:    return "<module>";
+			case ValueKind::VALUE_INT:          return "<int>";
+			case ValueKind::VALUE_FLOAT:        return "<float>";
+			case ValueKind::VALUE_BOOL:         return "<bool>";
+			case ValueKind::VALUE_STRING:       return "<string>";
+			case ValueKind::VALUE_FN:           return "<fn>";
+			case ValueKind::VALUE_INSTANCE:     return "<instance>";
+			case ValueKind::VALUE_NULL:         return "<null>";
+			case ValueKind::VALUE_NATIVE_FN:    return "<native_fn>";
+			case ValueKind::VALUE_ARR:          return "<array>";
+			case ValueKind::VALUE_FILE:         return "<file>";
+			case ValueKind::VALUE_DICT:         return "<dict>";
+			case ValueKind::VALUE_MODULE:       return "<module>";
+			case ValueKind::VALUE_BOUND_METHOD: return "<bound method>";
 			default: return "<type not found>";
 		}
 	}
