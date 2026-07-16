@@ -68,12 +68,13 @@ bool CompilationUnit::run_pipeline(const std::string& filepath, PipelineContext&
 	// run codegen, check for errors, and set the modules name to be used at runtime, can also be an alias like import "math" as "m"
 	this->module = codegen.compile(parser.get_ast(), &ctx, this->filepath, &imports);
 	this->module->name = this->moduleAlias == "" ? module_name_from_path(filepath) : this->moduleAlias;
+	this->module->stemmedPath = module_name_from_path(this->filepath);
 	if (ctx.reporter.has_errors()) { return false; }
 
 #ifdef _DEBUG
 	//lexer.dump_tokens();
 	//std::cout << Utils::serialize_ast(parser.get_ast());
-	//std::cout << Utils::disassemble_compiled_module(module);
+	std::cout << Utils::disassemble_compiled_module(module);
 #endif
 
 	// finally remove this file from in progress and return true signifying this file was compiled successfully

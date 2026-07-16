@@ -52,13 +52,15 @@ void VM::initialize_module(Module* module)
 
 	push_call_frame(module->root, CallFrameContext::Fn, module);
 	dispatch_loop();
-	cleanup_global_call_frame();
 
 #ifdef _DEBUG
 	auto end = std::chrono::steady_clock::now();
 	auto elapsed = end - start;
+	std::cout << "vm stack size after initializing: " << stack.size() << std::endl;
 	std::cout << "initialize module: " << module->name << "... took " << std::chrono::duration<double, std::milli>(elapsed).count() << (" ms") << std::endl;
 #endif
+
+	cleanup_global_call_frame();
 }
 
 void VM::execute_module(Module* module)
@@ -97,6 +99,7 @@ Module* VM::create_runtime_module(CompiledModule* module)
 	for (ClassDecl* decl : module->classes)
 		runtimeModule->classMap[decl->name] = decl;
 
+	this->allModules.push_back(runtimeModule);
 	return runtimeModule;
 }
 
@@ -272,7 +275,8 @@ void VM::dispatch_loop()
 		CallFrame& frame = callStack.back();
 
 		if (gc.should_collect())
-			gc.collect(stack, frame.hostModule->globals);
+			gc.collect(stack, this->allModules);
+			//gc.collect(stack, frame.hostModule->globals);
 
 		Opcode opcode = static_cast<Opcode>(*frame.ip++);
 
@@ -301,7 +305,7 @@ void VM::dispatch_loop()
 			case Opcode::STORE_GLOBAL:
 			{
 				uint16_t slot = static_cast<uint16_t>(*frame.ip) | (static_cast<uint16_t>(*(frame.ip + 1)) << 8);
-				Value& val = stack.back();
+				Value val = stack.back();
 				frame.hostModule->globals[slot] = val;
 				stack.pop_back();
 				frame.ip += 2;
@@ -468,7 +472,6 @@ void VM::dispatch_loop()
 					BoundMethod* fnData = std::get<BoundMethod*>(fn.data);
 					if (argc != fnData->method->argc)
 					{
-						std::cout << "Bound method crash, method name == " << fnData->method->name << ", argc == " << argc << std::endl;
 						runtime_error("expected " + std::to_string(fnData->method->argc) + " arg(s), but got " + std::to_string(argc));
 						return;
 					}
@@ -511,27 +514,59 @@ void VM::dispatch_loop()
 					{
 						Instance* instance = std::get<Instance*>(object.data);
 
-						// then need to verify the instance has a method named 'methodName'
-						auto& method = instance->classDecl->methods.find(methodName);
-
-						if (method == instance->classDecl->methods.end())
+						// first, check if methodName resolves to one of instance's fields, if it does, the instance
+						// may be storing a bound method, or a raw fn
+						auto& fieldIt = instance->classDecl->fields.find(methodName);
+						if (fieldIt != instance->classDecl->fields.end())
 						{
-							runtime_error("no class method \"" + methodName + "\" exists for object");
-							return;
-						}
+							const Value& fieldVal = instance->fields[fieldIt->second];
+							if (fieldVal.kind == ValueKind::VALUE_BOUND_METHOD)
+							{
+								BoundMethod* boundMethod = std::get<BoundMethod*>(fieldVal.data);
+								if (argc != boundMethod->method->argc)
+								{
+									runtime_error("expected " + std::to_string(boundMethod->method->argc) + " arg(s), but got " + std::to_string(argc));
+									return;
+								}
+								
+								stack[stack.size() - argc - 1] = boundMethod->object;
+								push_call_frame(boundMethod->method, CallFrameContext::Method, boundMethod->object->hostModule);
+							}
+							else if (fieldVal.kind == ValueKind::VALUE_FN)
+							{
+								Function* fn = std::get<Function*>(fieldVal.data);
+								if (argc != fn->argc)
+								{
+									runtime_error("expected " + std::to_string(fn->argc) + " arg(s), but got " + std::to_string(argc));
+									return;
+								}
 
-						// then verify arg counts match
-						if (method->second->argc != argc)
-						{
-							runtime_error("class method \"" + methodName + "\" expects " + std::to_string(method->second->argc) + " args but got " + std::to_string(argc));
-							return;
+								push_call_frame(fn, CallFrameContext::Fn, frame.hostModule);
+							}
 						}
-
-						// then push call frame
-						if (instance->classDecl->name == methodName)
-							push_call_frame(method->second, CallFrameContext::Constructor, instance->hostModule);
 						else
-							push_call_frame(method->second, CallFrameContext::Method, instance->hostModule);
+						{
+							// then need to verify the instance has a method named 'methodName'
+							auto method = instance->classDecl->methods.find(methodName);
+							if (method == instance->classDecl->methods.end())
+							{
+								runtime_error("no class method \"" + methodName + "\" exists for object");
+								return;
+							}
+
+							// then verify arg counts match
+							if (method->second->argc != argc)
+							{
+								runtime_error("class method \"" + methodName + "\" expects " + std::to_string(method->second->argc) + " args but got " + std::to_string(argc));
+								return;
+							}
+
+							// then push call frame
+							if (instance->classDecl->name == methodName)
+								push_call_frame(method->second, CallFrameContext::Constructor, instance->hostModule);
+							else
+								push_call_frame(method->second, CallFrameContext::Method, instance->hostModule);
+						}
 
 						break;
 					}
@@ -744,14 +779,14 @@ void VM::dispatch_loop()
 
 				if (lhs.kind == ValueKind::VALUE_STRING && rhs.kind == ValueKind::VALUE_STRING)
 				{
-					stack.emplace_back(std::get<std::string>(lhs.data) + std::get<std::string>(rhs.data));
+					stack.push_back(std::get<std::string>(lhs.data) + std::get<std::string>(rhs.data));
 				}
 				else if (Utils::is_numeric(lhs) && Utils::is_numeric(rhs))
 				{
 					if (lhs.kind == ValueKind::VALUE_FLOAT || rhs.kind == ValueKind::VALUE_FLOAT)
-						stack.emplace_back(Utils::to_double(lhs) + Utils::to_double(rhs));
+						stack.push_back(Utils::to_double(lhs) + Utils::to_double(rhs));
 					else
-						stack.emplace_back(Utils::to_int(lhs) + Utils::to_int(rhs));
+						stack.push_back(Utils::to_int(lhs) + Utils::to_int(rhs));
 				}
 				else
 				{

@@ -27,7 +27,7 @@ void Runtime::execute(std::vector<CompilationUnit*>& compilationUnits)
 				return;
 		}
 	}
-
+	
 	// patch all of mains imported modules after they're initialized
 	for (CompilationUnit* dependency : main->imports)
 	{
@@ -59,7 +59,6 @@ bool Runtime::execute_compilation_unit(CompilationUnit* unit, std::vector<Compil
 		unit->module->globals[slot] = Value(dependency->runtimeModule);
 	}
 
-	std::cout << "Creating new runtime module for <" << unit->filepath << ">\n";
 	unit->runtimeModule = vm->create_runtime_module(unit->module);
 	vm->initialize_module(unit->runtimeModule);
 	unit->initialized = true;

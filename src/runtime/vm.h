@@ -60,6 +60,7 @@ private:
 	GarbageCollector gc;
 	std::vector<Value> stack;
 	std::vector<CallFrame> callStack;
+	std::vector<Module*> allModules;
 	bool hasErrors;
 
 	// built in methods

@@ -30,7 +30,7 @@ GarbageCollector::~GarbageCollector()
 	}
 }
 
-void GarbageCollector::collect(std::vector<Value>& stack, std::vector<Value>& globals)
+void GarbageCollector::collect(std::vector<Value>& stack, std::vector<Module*>& allModules)
 {
 	#ifdef _DEBUG
 		stats.collections++;
@@ -40,8 +40,16 @@ void GarbageCollector::collect(std::vector<Value>& stack, std::vector<Value>& gl
 	for (Value& val : stack)
 		mark_value(val);
 
-	for (Value& val : globals)
-		mark_value(val);
+	for (Module* module : allModules)
+	{
+		if (module->marked)
+			continue;
+
+		mark_object(module);
+
+		for (Value& val : module->globals)
+			mark_value(val);
+	}
 
 	// sweep the gc objects and free any objects that are unreachable
 	sweep();
@@ -61,7 +69,7 @@ void GarbageCollector::mark_value(const Value& val)
 		{
 			Instance* instance = std::get<Instance*>(val.data);
 			if (instance->marked) break;
-
+			
 			mark_object(instance);
 
 			for (Value& field : instance->fields)
@@ -102,6 +110,28 @@ void GarbageCollector::mark_value(const Value& val)
 			if (file->marked) break;
 
 			mark_object(file);
+			break;
+		}
+		case ValueKind::VALUE_BOUND_METHOD:
+		{
+			BoundMethod* method = std::get<BoundMethod*>(val.data);
+			if (method->marked) break;
+			
+			mark_object(method);
+			mark_value(method->object);
+
+			break;
+		}
+		case ValueKind::VALUE_MODULE:
+		{
+			Module* module = std::get<Module*>(val.data);
+			if (module->marked) break;
+
+			mark_object(module);
+
+			for (Value& global : module->globals)
+				mark_value(global);
+
 			break;
 		}
 	}

@@ -16,7 +16,7 @@ public:
 	~GarbageCollector();
 
 	void log_stats();
-	void collect(std::vector<Value>& stack, std::vector<Value>& globals);
+	void collect(std::vector<Value>& stack, std::vector<Module*>& allModules);
 
 	inline bool should_collect() const { return heapSize > heapThreshold; }
 
